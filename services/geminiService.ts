@@ -1,8 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { WordData } from '../types';
 
-// Initialize lazily to prevent top-level crash if API Key is missing
-const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Access the API key injected by Vite at build time
+const API_KEY = process.env.API_KEY;
+
+// Initialize lazily and safely
+const getAi = () => {
+  if (!API_KEY) {
+    throw new Error("API Key 未配置。请在 Vercel 环境变量中添加 API_KEY 并重新部署 (Redeploy)。");
+  }
+  return new GoogleGenAI({ apiKey: API_KEY });
+};
 
 // ==========================================
 // CONCURRENCY CONTROL & UTILS
@@ -78,6 +86,9 @@ const callGeminiImage = async (prompt: string, attempt = 1): Promise<string | nu
     }
     return null;
   } catch (error: any) {
+    // If API key is missing, fail fast
+    if (error.message && error.message.includes('API Key')) throw error;
+
     const isRateLimit = error.status === 429 || (error.message && error.message.includes('429'));
     const isServerOverload = error.status === 503;
 
@@ -170,7 +181,8 @@ export const streamVocabularyEnrichment = async (
   `;
 
   try {
-    const response = await getAi().models.generateContentStream({
+    const ai = getAi(); // Use the safe getter
+    const response = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: prompt,
     });
@@ -195,8 +207,12 @@ export const streamVocabularyEnrichment = async (
       processLine(buffer, onWordReceived);
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Streaming Error:", error);
+    // Propagate the specific API Key error if present
+    if (error.message && (error.message.includes('API Key') || error.message.includes('API key'))) {
+        throw error;
+    }
     throw new Error("生成流中断，请重试。");
   }
 };

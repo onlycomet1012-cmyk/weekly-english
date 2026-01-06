@@ -90,9 +90,13 @@ const App: React.FC = () => {
         }
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('连接超时，请检查网络。');
+      if (error.message && (error.message.includes('API Key') || error.message.includes('API_KEY'))) {
+        toast.error(error.message, { duration: 6000 });
+      } else {
+        toast.error('连接超时或服务不可用，请稍后重试。');
+      }
       setLoading(false);
     }
   };
