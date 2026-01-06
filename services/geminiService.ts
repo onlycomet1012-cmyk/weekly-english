@@ -1,7 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { WordData } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize lazily to prevent top-level crash if API Key is missing
+const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // ==========================================
 // CONCURRENCY CONTROL & UTILS
@@ -61,7 +62,7 @@ const imageGenerationQueue = new RequestQueue(1, 800);
 
 const callGeminiImage = async (prompt: string, attempt = 1): Promise<string | null> => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAi().models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [{ text: prompt }]
@@ -169,7 +170,7 @@ export const streamVocabularyEnrichment = async (
   `;
 
   try {
-    const response = await ai.models.generateContentStream({
+    const response = await getAi().models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: prompt,
     });
