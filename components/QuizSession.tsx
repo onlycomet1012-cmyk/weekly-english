@@ -50,21 +50,25 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
     }
   }, [words]);
 
-  // SMART PRE-LOADING: Preload images for the next 3 words in the queue.
-  // This ensures images are in the browser cache before the user clicks "Next".
+  // SMART PRE-LOADING (OPTIMIZED)
+  // Preload images for the next 3 words.
+  // We strictly look up from 'words' prop to get the latest URLs (as they might load in background).
   useEffect(() => {
     if (queue.length === 0) return;
     
     const PRELOAD_COUNT = 3;
-    const nextWords = queue.slice(currentIndex + 1, currentIndex + 1 + PRELOAD_COUNT);
+    // Get the IDs of the next few words in the queue
+    const nextIds = queue.slice(currentIndex + 1, currentIndex + 1 + PRELOAD_COUNT).map(w => w.id);
     
-    nextWords.forEach(word => {
-      if (word.imageUrl) {
+    nextIds.forEach(id => {
+      // Find the freshest data for this ID from the 'words' prop
+      const freshWord = words.find(w => w.id === id);
+      if (freshWord?.imageUrl) {
         const img = new Image();
-        img.src = word.imageUrl;
+        img.src = freshWord.imageUrl;
       }
     });
-  }, [currentIndex, queue]);
+  }, [currentIndex, queue, words]); // Added 'words' to dependency to react to background fetches
 
   // Re-sync currentWord
   const currentWord = queue.length > 0 ? words.find(w => w.id === queue[currentIndex].id) || queue[currentIndex] : null;
