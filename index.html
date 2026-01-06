@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="LexiWeek">
     <title>LexiWeek</title>
-    <!-- Tailwind CDN is kept as per request. For better performance in future, consider moving to PostCSS. -->
+    <!-- Tailwind CDN is kept as per request. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -22,6 +22,26 @@
       }
       .animate-shake {
         animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+      }
+      /* Loading Spinner */
+      .initial-loader {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        width: 100vw;
+        background-color: #f8fafc;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #e2e8f0;
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
       }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
@@ -56,7 +76,11 @@
 </script>
 </head>
   <body class="bg-slate-50 text-slate-900 antialiased">
-    <div id="root"></div>
+    <div id="root">
+      <div class="initial-loader">
+        <div class="spinner"></div>
+      </div>
+    </div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
