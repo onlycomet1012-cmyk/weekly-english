@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { WordData, QuizResult, SongPlayData } from '../types';
+import { WordData, QuizResult } from '../types';
 import { playSuccessSound, playErrorSound, playVictorySound, speakText, resumeAudioContext } from '../services/audioService';
 
 interface QuizSessionProps {
@@ -22,11 +22,6 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
   const [quizMode, setQuizMode] = useState<QuizMode>('SPELL_FROM_DEF');
   const [choices, setChoices] = useState<WordData[]>([]);
   
-  // Music State
-  const [musicState, setMusicState] = useState<'idle' | 'playing' | 'error'>('idle');
-  
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  
   const [isFinished, setIsFinished] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +32,6 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
   useEffect(() => {
     return () => {
       window.speechSynthesis?.cancel();
-      stopMusic();
     };
   }, []);
 
@@ -56,18 +50,24 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
     }
   }, [words]);
 
+  // SMART PRE-LOADING: Preload images for the next 3 words in the queue.
+  // This ensures images are in the browser cache before the user clicks "Next".
+  useEffect(() => {
+    if (queue.length === 0) return;
+    
+    const PRELOAD_COUNT = 3;
+    const nextWords = queue.slice(currentIndex + 1, currentIndex + 1 + PRELOAD_COUNT);
+    
+    nextWords.forEach(word => {
+      if (word.imageUrl) {
+        const img = new Image();
+        img.src = word.imageUrl;
+      }
+    });
+  }, [currentIndex, queue]);
+
   // Re-sync currentWord
   const currentWord = queue.length > 0 ? words.find(w => w.id === queue[currentIndex].id) || queue[currentIndex] : null;
-
-  const stopMusic = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.removeAttribute('src'); 
-      audioRef.current.load();
-      audioRef.current = null;
-    }
-    setMusicState('idle');
-  };
 
   const setupNewRound = (word: WordData, allWords: WordData[]) => {
     const modes: QuizMode[] = ['SPELL_FROM_DEF', 'SPELL_FROM_AUDIO', 'MEANING_FROM_WORD'];
@@ -134,24 +134,25 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
     if (!currentWord) return;
     setStatus('correct');
     
-    // 1. Play success effect (Web Audio API)
+    // 1. Play success effect
     playSuccessSound();
 
-    // 2. Handle Song vs TTS
-    // On iOS, we must play audio immediately in the event loop for it to start.
-    // If we have a song, prioritize it.
-    if (currentWord.songData) {
-        // Stop any pending TTS
-        window.speechSynthesis.cancel();
-        // Play song immediately
-        playSong(currentWord.songData!);
-    } else {
-        // If no song, use TTS
-        speakText(currentWord.word);
-        if (currentWord.songInfo) {
-           // Queue this for after
-           fallbackTTS(currentWord);
+    // 2. Speak the word first
+    window.speechSynthesis.cancel();
+    speakText(currentWord.word);
+
+    // 3. Read the English quote after a short delay
+    if (currentWord.quote) {
+      setTimeout(() => {
+        // Safe access for both legacy string and new object types
+        const textToSpeak = typeof currentWord.quote === 'string' 
+          ? currentWord.quote 
+          : currentWord.quote?.english;
+          
+        if (textToSpeak) {
+           speakText(textToSpeak, 0.9);
         }
+      }, 1000);
     }
     
     const newCount = currentWord.correctCount + 1;
@@ -159,55 +160,6 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
       correctCount: newCount, 
       lastPracticed: new Date().toISOString() 
     });
-  };
-
-  const playSong = (songData: SongPlayData) => {
-      stopMusic();
-      const audio = new Audio();
-      
-      audio.crossOrigin = "anonymous";
-      audio.src = songData.url;
-      audioRef.current = audio;
-
-      audio.onloadedmetadata = () => {
-          if (songData.startTime > 0 && songData.startTime < audio.duration) {
-            audio.currentTime = songData.startTime;
-          }
-      };
-
-      // iOS requires explicit play() call, sometimes promise based
-      const playPromise = audio.play();
-      
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-           setMusicState('playing');
-           
-           // Fade out / Stop logic
-           setTimeout(() => {
-              if (audioRef.current === audio) {
-                const fadeOut = setInterval(() => {
-                    if (audio.volume > 0.1) {
-                        audio.volume -= 0.1;
-                    } else {
-                        clearInterval(fadeOut);
-                        try { audio.pause(); } catch(e) { /* ignore */ }
-                        setMusicState('idle');
-                    }
-                }, 200);
-              }
-           }, songData.duration * 1000);
-        }).catch(error => {
-           console.warn("Autoplay / Audio play blocked", error);
-           setMusicState('error');
-        });
-      }
-  };
-
-  const fallbackTTS = (word: WordData) => {
-    if (word.songLyric) {
-        const speechText = `From the song: ${word.songLyric}`;
-        setTimeout(() => speakText(speechText, 0.95), 1000);
-    }
   };
 
   const handleIncorrect = () => {
@@ -221,7 +173,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
   };
 
   const handleNext = () => {
-    stopMusic();
+    window.speechSynthesis.cancel();
     if (currentIndex < queue.length - 1) {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
@@ -330,49 +282,47 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
                   回答正确!
                 </div>
-                <div className="text-3xl sm:text-4xl text-slate-800 font-bold capitalize">{currentWord.word}</div>
-                <div className="text-slate-500 text-sm mb-2">{currentWord.definition}</div>
+                <div className="text-3xl sm:text-4xl text-slate-800 font-bold capitalize mb-1">{currentWord.word}</div>
+                <div className="text-slate-500 text-sm mb-4">{currentWord.definition}</div>
                 
-                {currentWord.songData && (
-                  <div className={`bg-amber-50 border border-amber-200 rounded-lg p-3 w-full max-w-sm transition-all duration-500 relative overflow-hidden ${musicState === 'playing' ? 'shadow-lg shadow-amber-100 scale-105 ring-2 ring-amber-300' : ''}`}>
-                    <div className="flex justify-between items-start mb-1 relative z-10">
-                         <div className="flex items-center gap-2 text-amber-600 text-xs font-bold uppercase">
-                          {musicState === 'playing' ? (
-                            <span className="flex gap-1 items-center">
-                              <span className="flex h-3 w-3 relative">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                              </span>
-                              Playing
-                            </span>
-                          ) : (
-                            <span className="flex gap-1 items-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
-                              {currentWord.songData.artist} - {currentWord.songData.name}
-                            </span>
-                          )}
-                        </div>
+                {/* PROVERB / JOKE CARD - BILINGUAL */}
+                {currentWord.quote && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 w-full max-w-sm relative">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-100 text-amber-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Fun Fact / Quote
                     </div>
-
-                    <p className="text-slate-700 italic font-medium transition-colors duration-300 relative z-10">
-                      "{currentWord.songLyric}"
-                    </p>
-                    {musicState === 'playing' && (
-                       <div className="absolute bottom-0 left-0 h-1 bg-amber-200/50 w-full animate-progress origin-left"></div>
+                    {/* Check if quote is object (new) or string (legacy) */}
+                    {typeof currentWord.quote === 'object' ? (
+                        <>
+                            <p className="text-slate-800 font-medium text-lg leading-relaxed font-serif italic mb-1">
+                            “{currentWord.quote.english}”
+                            </p>
+                            <p className="text-slate-500 text-sm font-light">
+                            {currentWord.quote.chinese}
+                            </p>
+                        </>
+                    ) : (
+                        <p className="text-slate-700 font-medium text-lg leading-relaxed font-serif italic mb-2">
+                            “{currentWord.quote}”
+                        </p>
                     )}
+                    
+                    <button 
+                      onClick={() => {
+                          const txt = typeof currentWord.quote === 'string' ? currentWord.quote : currentWord.quote?.english;
+                          if (txt) speakText(txt, 0.9);
+                      }}
+                      className="text-amber-500 hover:text-amber-700 transition-colors p-2 mt-1"
+                      title="Read aloud"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    </button>
                   </div>
-                )}
-                
-                {/* Fallback Display if SongInfo exists but No SongData found */}
-                {!currentWord.songData && currentWord.songInfo && (
-                   <div className="text-xs text-slate-400 italic">
-                      From song: {currentWord.songInfo} (Audio unavailable)
-                   </div>
                 )}
               </div>
               
               <div className="w-full flex items-center justify-center">
-                <div className="w-full max-w-[280px] aspect-square rounded-xl overflow-hidden shadow-md border border-slate-100 bg-slate-50 flex items-center justify-center relative">
+                <div className="w-full max-w-[200px] aspect-square rounded-xl overflow-hidden shadow-md border border-slate-100 bg-slate-50 flex items-center justify-center relative">
                   {currentWord.imageUrl ? (
                     <img 
                       src={currentWord.imageUrl} 

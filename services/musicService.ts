@@ -1,4 +1,11 @@
-import { SongPlayData } from '../types';
+// Defined locally as it was removed from shared types
+export interface SongPlayData {
+  url: string;
+  startTime: number;
+  duration: number;
+  name: string;
+  artist: string;
+}
 
 // ==========================================
 // UTILS

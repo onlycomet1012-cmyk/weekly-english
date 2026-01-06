@@ -1,15 +1,66 @@
 import { GoogleGenAI } from "@google/genai";
 import { WordData } from '../types';
-import { getSongSegment } from './musicService';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Image generation with robust fallback
-export const generateWordImage = async (word: string): Promise<string | null> => {
-  // 1. Try Gemini
+// ==========================================
+// CONCURRENCY CONTROL & UTILS
+// ==========================================
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+class RequestQueue {
+  private queue: (() => Promise<void>)[] = [];
+  private working = 0;
+  private limit: number;
+  private timeBetweenRequests: number;
+
+  constructor(concurrencyLimit: number, delayMs: number) {
+    this.limit = concurrencyLimit;
+    this.timeBetweenRequests = delayMs;
+  }
+
+  enqueue<T>(task: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await task();
+          resolve(result);
+        } catch (e) {
+          reject(e);
+        }
+      });
+      this.process();
+    });
+  }
+
+  private async process() {
+    if (this.working >= this.limit || this.queue.length === 0) return;
+
+    this.working++;
+    const task = this.queue.shift();
+
+    if (task) {
+      await task();
+      if (this.queue.length > 0) {
+        await delay(this.timeBetweenRequests);
+      }
+    }
+
+    this.working--;
+    this.process();
+  }
+}
+
+// Reduced delay to 800ms to speed up loading while staying safe
+const imageGenerationQueue = new RequestQueue(1, 800);
+
+// ==========================================
+// IMAGE GENERATION
+// ==========================================
+
+const callGeminiImage = async (prompt: string, attempt = 1): Promise<string | null> => {
   try {
-    const prompt = `Minimalist vector icon for "${word}", white background, flat design, single object, colorful.`;
-    
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -18,55 +69,63 @@ export const generateWordImage = async (word: string): Promise<string | null> =>
     });
 
     if (response.candidates && response.candidates.length > 0) {
-       for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-             return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          }
-       }
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        }
+      }
     }
-  } catch (error) {
-    console.warn(`Gemini Image Generation failed for ${word}, trying fallback...`);
-  }
+    return null;
+  } catch (error: any) {
+    const isRateLimit = error.status === 429 || (error.message && error.message.includes('429'));
+    const isServerOverload = error.status === 503;
 
-  // 2. Fallback to Pollinations AI (Free, fast, reliable)
-  try {
-      const seed = Math.floor(Math.random() * 10000);
-      const safeWord = encodeURIComponent(word);
-      return `https://image.pollinations.ai/prompt/minimalist%20flat%20vector%20icon%20${safeWord}%20white%20background?nologo=true&seed=${seed}&width=512&height=512`;
-  } catch (e) {
-      return null;
+    if ((isRateLimit || isServerOverload) && attempt <= 3) {
+      const waitTime = 2000 * Math.pow(2, attempt - 1);
+      console.warn(`Gemini 429/503 hit. Retrying in ${waitTime}ms (Attempt ${attempt})...`);
+      await delay(waitTime);
+      return callGeminiImage(prompt, attempt + 1);
+    }
+    
+    throw error;
   }
 };
 
-// Helper to fetch media for a single word independently
+export const generateWordImage = async (word: string): Promise<string | null> => {
+  return imageGenerationQueue.enqueue(async () => {
+    try {
+      const prompt = `Minimalist vector icon for "${word}", white background, flat design, single object, colorful.`;
+      const image = await callGeminiImage(prompt);
+      if (image) return image;
+    } catch (error) {
+      console.warn(`Gemini Image Generation exhausted for ${word}, switching to fallback.`);
+    }
+
+    await delay(500);
+    try {
+      const seed = Math.floor(Math.random() * 10000);
+      const safeWord = encodeURIComponent(word);
+      return `https://image.pollinations.ai/prompt/minimalist%20flat%20vector%20icon%20${safeWord}%20white%20background?nologo=true&seed=${seed}&width=512&height=512`;
+    } catch (e) {
+      return null;
+    }
+  });
+};
+
+// ==========================================
+// MEDIA & DATA FETCHING
+// ==========================================
+
 export const fetchMediaForWord = async (word: WordData): Promise<WordData> => {
   const updatedWord = { ...word };
   let hasChanges = false;
 
-  // A. Generate Image
+  // Only generate Image now. No more music fetching.
   if (!updatedWord.imageUrl) {
       const imageUrl = await generateWordImage(updatedWord.word);
       if (imageUrl) {
           updatedWord.imageUrl = imageUrl;
           hasChanges = true;
-      }
-  }
-
-  // B. Match Music
-  if (updatedWord.songCandidates && updatedWord.songCandidates.length > 0 && !updatedWord.songData) {
-      // Try candidates strictly in order.
-      for (const candidate of updatedWord.songCandidates) {
-          try {
-              const songData = await getSongSegment(candidate.songInfo, updatedWord.word);
-              if (songData) {
-                  updatedWord.songData = songData;
-                  updatedWord.songInfo = candidate.songInfo;
-                  hasChanges = true;
-                  break; 
-              }
-          } catch (e) {
-              console.warn(`Error fetching music for candidate (${candidate.songInfo})`, e);
-          }
       }
   }
 
@@ -96,19 +155,17 @@ export const streamVocabularyEnrichment = async (
       "definition": "string (Concise Simplified Chinese definition)",
       "partOfSpeech": "string (e.g. noun, verb)",
       "exampleSentence": "string (English sentence with the word replaced by '_______')",
-      "songCandidates": [
-          { 
-            "songInfo": "string (Artist - Song Name)", 
-            "songLyric": "string (The specific line containing the word)"
-          }
-      ]
+      "quote": {
+        "english": "string (A short, witty joke OR a common proverb/idiom that uses this word. Must be under 25 words.)",
+        "chinese": "string (Translation of the quote in Chinese)"
+      }
     }
 
-    CRITICAL INSTRUCTION FOR SONGS:
-    - Provide **3 distinct song candidates** for each word.
-    - **CRUCIAL**: The target word MUST be clearly audible in the lyric line you provide.
-    - **Selection**: Choose POPULAR, GLOBAL HITS (Pop, Rock, Disney, Country) that are likely to be in standard music databases.
-    - Format songInfo as "Song Name - Artist Name".
+    INSTRUCTIONS FOR 'quote':
+    - It must be fun or insightful.
+    - If the word is common, use a famous proverb.
+    - If the word is obscure, use a short, clean joke.
+    - The word itself MUST appear in the English quote.
   `;
 
   try {
@@ -159,23 +216,26 @@ const processLine = (line: string, callback: (word: WordData) => void) => {
     const item = JSON.parse(jsonString);
     
     if (item.word && item.definition) {
-        const primaryCandidate = item.songCandidates?.[0];
-        
+        // Handle legacy string format if necessary, though we prefer object now
+        let quoteObj = undefined;
+        if (item.quote) {
+          if (typeof item.quote === 'string') {
+             quoteObj = { english: item.quote, chinese: '' };
+          } else {
+             quoteObj = item.quote;
+          }
+        }
+
         const wordData: WordData = {
           id: crypto.randomUUID(),
           word: item.word.toLowerCase().trim(),
           definition: item.definition,
           exampleSentence: item.exampleSentence || "No example available.",
           partOfSpeech: item.partOfSpeech || "",
-          
-          songLyric: primaryCandidate?.songLyric,
-          songInfo: primaryCandidate?.songInfo,
-          
-          songCandidates: item.songCandidates || [],
+          quote: quoteObj, 
           
           correctCount: 0,
           imageUrl: undefined,
-          songData: null
         };
         callback(wordData);
     }

@@ -79,10 +79,10 @@ const App: React.FC = () => {
           toast.success('开始生成单词...');
         }
 
-        // Background fetch (try candidates automatically)
+        // Background fetch (Images only now)
         try {
           const enrichedWord = await fetchMediaForWord(textWord);
-          if (enrichedWord.imageUrl || enrichedWord.songData) {
+          if (enrichedWord.imageUrl) {
             handleUpdateWord(enrichedWord.id, enrichedWord);
           }
         } catch (e) {

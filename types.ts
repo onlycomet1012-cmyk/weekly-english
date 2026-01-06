@@ -4,17 +4,9 @@ export enum AppState {
   QUIZ = 'QUIZ'
 }
 
-export interface SongPlayData {
-  url: string;
-  startTime: number;
-  duration: number;
-  name: string;
-  artist: string;
-}
-
-export interface SongCandidate {
-  songInfo: string;
-  songLyric: string;
+export interface QuoteData {
+  english: string;
+  chinese: string;
 }
 
 export interface WordData {
@@ -27,13 +19,8 @@ export interface WordData {
   lastPracticed?: string;
   imageUrl?: string;
   
-  // Current active song info
-  songLyric?: string;
-  songInfo?: string;
-  songData?: SongPlayData | null;
-  
-  // List of candidates for fallback
-  songCandidates?: SongCandidate[];
+  // Replaced song data with a fun quote/joke/proverb object
+  quote?: QuoteData; 
 }
 
 export interface QuizResult {
