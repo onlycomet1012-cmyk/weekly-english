@@ -3,15 +3,13 @@ import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
-  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
     plugins: [react()],
     define: {
-      // Injects the process.env.API_KEY from Netlify environment variables into the code
-      'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      // Safely inject the variable. If env.API_KEY is undefined, it becomes "undefined" (string) or empty string to prevent crash.
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
     },
     build: {
       outDir: 'dist',
