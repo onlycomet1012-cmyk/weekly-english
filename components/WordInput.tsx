@@ -25,22 +25,22 @@ export const WordInput: React.FC<WordInputProps> = ({ onSubmit, isLoading, hasEx
   return (
     <div className="bg-white/80 backdrop-blur-md shadow-xl rounded-2xl p-6 sm:p-8 border border-white/50 animate-fade-in-up">
       <div className="text-center mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">开启新的一周</h1>
-        <p className="text-sm sm:text-base text-slate-500">
-          请在下方粘贴本周的生词表。我们将自动搜索图片并匹配音乐。
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">本周词汇录入</h1>
+        <p className="text-sm sm:text-base text-slate-500 max-w-lg mx-auto">
+          只需在每周开始时输入一次。系统会在 <span className="font-semibold text-indigo-600">周六 18:00</span> 自动重置并开启新的一周。
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label htmlFor="words" className="block text-sm font-medium text-slate-700 mb-2">
-            词汇列表 (请用逗号或换行分隔)
+            粘贴单词列表 (用逗号或换行分隔)
           </label>
           <textarea
             id="words"
             rows={8}
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-slate-700 placeholder-slate-400 bg-white"
-            placeholder="例如: ephemeral, serendipity, resilient..."
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-slate-700 placeholder-slate-400 bg-white font-mono text-base"
+            placeholder={`serendipity\nephemeral\nresilient\n...`}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={isLoading}
@@ -55,7 +55,7 @@ export const WordInput: React.FC<WordInputProps> = ({ onSubmit, isLoading, hasEx
               className="w-full sm:flex-1 px-6 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition-colors order-2 sm:order-1"
               disabled={isLoading}
             >
-              取消
+              返回本周列表
             </button>
           )}
           <button
@@ -72,9 +72,9 @@ export const WordInput: React.FC<WordInputProps> = ({ onSubmit, isLoading, hasEx
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                正在匹配资源...
+                正在解析与生成...
               </span>
-            ) : '开始学习'}
+            ) : '生成本周词库'}
           </button>
         </div>
       </form>

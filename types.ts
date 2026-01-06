@@ -27,3 +27,8 @@ export interface QuizResult {
   wordId: string;
   correct: boolean;
 }
+
+export interface StoredData {
+  cycleStart: number;
+  words: WordData[];
+}

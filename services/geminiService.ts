@@ -164,14 +164,18 @@ export const streamVocabularyEnrichment = async (
     Schema for each object:
     {
       "word": "string (lowercase)",
-      "definition": "string (Concise Simplified Chinese definition)",
+      "definition": "string (Precise and comprehensive Simplified Chinese definition. If the word has multiple distinct meanings or parts of speech, separate them with '; '. Example: 'n. 银行; v. 堆积'. Avoid ambiguous single characters.)",
       "partOfSpeech": "string (e.g. noun, verb)",
-      "exampleSentence": "string (English sentence with the word replaced by '_______')",
+      "exampleSentence": "string (English sentence with the word replaced by '_______'. The sentence must clearly demonstrate the word's meaning context.)",
       "quote": {
         "english": "string (A short, witty joke OR a common proverb/idiom that uses this word. Must be under 25 words.)",
         "chinese": "string (Translation of the quote in Chinese)"
       }
     }
+
+    INSTRUCTIONS FOR 'definition':
+    - Be specific. Instead of "跑" for "Run", use "v. 奔跑；经营；运行".
+    - Avoid machine-translation style. Use natural language suitable for a learner.
 
     INSTRUCTIONS FOR 'quote':
     - It must be fun or insightful.
