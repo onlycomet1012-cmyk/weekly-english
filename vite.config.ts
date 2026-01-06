@@ -23,10 +23,13 @@ export default defineConfig(({ mode }) => {
       assetsDir: 'assets',
       sourcemap: false, // Disable sourcemaps in production to save size
       minify: 'esbuild',
+      // CRITICAL FIX FOR MOBILE: Lower target to ensure iOS Safari compatibility
+      target: ['es2015', 'chrome87', 'safari13'], 
     },
     server: {
       port: 3000,
-      open: true
+      open: true,
+      host: true // Allow access from local network (mobile testing)
     }
   }
 })
