@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WordData, QuizResult } from '../types';
 import { playSuccessSound, playErrorSound, playVictorySound, speakText, resumeAudioContext } from '../services/audioService';
+import { toast } from 'react-hot-toast';
 
 interface QuizSessionProps {
   words: WordData[];
@@ -18,6 +19,9 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
   const [status, setStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle');
   const [showHint, setShowHint] = useState(false);
   
+  // Error Tracking
+  const [currentWordMistakes, setCurrentWordMistakes] = useState(0);
+
   // New States for Mixed Mode
   const [quizMode, setQuizMode] = useState<QuizMode>('SPELL_FROM_DEF');
   const [choices, setChoices] = useState<WordData[]>([]);
@@ -41,18 +45,25 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
     }
   }, [isFinished]);
 
+  // INITIALIZATION: PRIORITIZE UNKNOWN WORDS
   useEffect(() => {
     if (!hasInitialized.current && words.length > 0) {
-      const shuffled = [...words].sort(() => Math.random() - 0.5);
-      setQueue(shuffled);
+      // Sort words: Lowest correctCount comes first.
+      // If correctCounts are equal, shuffle randomly to keep it fresh.
+      const prioritized = [...words].sort((a, b) => {
+        if (a.correctCount === b.correctCount) {
+          return Math.random() - 0.5;
+        }
+        return a.correctCount - b.correctCount;
+      });
+
+      setQueue(prioritized);
       hasInitialized.current = true;
-      setupNewRound(shuffled[0], shuffled);
+      setupNewRound(prioritized[0], prioritized);
     }
   }, [words]);
 
-  // SMART PRE-LOADING (OPTIMIZED)
-  // Preload images for the next 3 words.
-  // We strictly look up from 'words' prop to get the latest URLs (as they might load in background).
+  // SMART PRE-LOADING
   useEffect(() => {
     if (queue.length === 0) return;
     
@@ -61,14 +72,13 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
     const nextIds = queue.slice(currentIndex + 1, currentIndex + 1 + PRELOAD_COUNT).map(w => w.id);
     
     nextIds.forEach(id => {
-      // Find the freshest data for this ID from the 'words' prop
       const freshWord = words.find(w => w.id === id);
       if (freshWord?.imageUrl) {
         const img = new Image();
         img.src = freshWord.imageUrl;
       }
     });
-  }, [currentIndex, queue, words]); // Added 'words' to dependency to react to background fetches
+  }, [currentIndex, queue, words]); 
 
   // Re-sync currentWord
   const currentWord = queue.length > 0 ? words.find(w => w.id === queue[currentIndex].id) || queue[currentIndex] : null;
@@ -137,18 +147,15 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
   const handleCorrect = async () => {
     if (!currentWord) return;
     setStatus('correct');
+    setCurrentWordMistakes(0); // Reset mistake count on success
     
-    // 1. Play success effect
     playSuccessSound();
 
-    // 2. Speak the word first
     window.speechSynthesis.cancel();
     speakText(currentWord.word);
 
-    // 3. Read the English quote after a short delay
     if (currentWord.quote) {
       setTimeout(() => {
-        // Safe access for both legacy string and new object types
         const textToSpeak = typeof currentWord.quote === 'string' 
           ? currentWord.quote 
           : currentWord.quote?.english;
@@ -167,8 +174,38 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
   };
 
   const handleIncorrect = () => {
-    setStatus('incorrect');
     playErrorSound();
+    
+    const newMistakeCount = currentWordMistakes + 1;
+    setCurrentWordMistakes(newMistakeCount);
+
+    // SKIP LOGIC: If 3 mistakes
+    if (newMistakeCount >= 3) {
+      toast("太难了？先跳过，稍后再试！", {
+        icon: '⏭️',
+        style: {
+          borderRadius: '10px',
+          background: '#333',
+          color: '#fff',
+        },
+      });
+      
+      // Move current word to the end of the queue
+      if (currentWord) {
+        setQueue(prev => [...prev, currentWord]);
+      }
+      
+      // Auto-move to next word after a short delay to show the red shake
+      setStatus('incorrect');
+      setTimeout(() => {
+        handleNext();
+      }, 800);
+      
+      return;
+    }
+
+    // Normal Incorrect flow
+    setStatus('incorrect');
     setTimeout(() => {
       setStatus('idle');
       setInput('');
@@ -178,6 +215,8 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
 
   const handleNext = () => {
     window.speechSynthesis.cancel();
+    setCurrentWordMistakes(0); // Reset for next word
+    
     if (currentIndex < queue.length - 1) {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
@@ -286,7 +325,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ words, onComplete, onU
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
                   回答正确!
                 </div>
-                <div className="text-3xl sm:text-4xl text-slate-800 font-bold capitalize mb-1">{currentWord.word}</div>
+                <div className="text-3xl sm:text-4xl text-slate-800 font-bold mb-1">{currentWord.word}</div>
                 <div className="text-slate-500 text-sm mb-4">{currentWord.definition}</div>
                 
                 {/* PROVERB / JOKE CARD - BILINGUAL */}

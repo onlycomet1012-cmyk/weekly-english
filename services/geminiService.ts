@@ -13,126 +13,63 @@ const getAi = () => {
 };
 
 // ==========================================
-// CONCURRENCY CONTROL & UTILS
+// UTILS
 // ==========================================
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-class RequestQueue {
-  private queue: (() => Promise<void>)[] = [];
-  private working = 0;
-  private limit: number;
-  private timeBetweenRequests: number;
-
-  constructor(concurrencyLimit: number, delayMs: number) {
-    this.limit = concurrencyLimit;
-    this.timeBetweenRequests = delayMs;
-  }
-
-  enqueue<T>(task: () => Promise<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
-      this.queue.push(async () => {
-        try {
-          const result = await task();
-          resolve(result);
-        } catch (e) {
-          reject(e);
-        }
-      });
-      this.process();
-    });
-  }
-
-  private async process() {
-    if (this.working >= this.limit || this.queue.length === 0) return;
-
-    this.working++;
-    const task = this.queue.shift();
-
-    if (task) {
-      await task();
-      if (this.queue.length > 0) {
-        await delay(this.timeBetweenRequests);
-      }
-    }
-
-    this.working--;
-    this.process();
-  }
-}
-
-// Reduced delay to 800ms to speed up loading while staying safe
-const imageGenerationQueue = new RequestQueue(1, 800);
 
 // ==========================================
 // IMAGE GENERATION
 // ==========================================
 
-const callGeminiImage = async (prompt: string, attempt = 1): Promise<string | null> => {
+export const generateWordImage = async (word: string): Promise<string | null> => {
+  // We use Pollinations.ai for reliable, storage-friendly (URL only), and lightweight image generation.
+  // Gemini base64 images often exceed LocalStorage quotas on mobile devices, causing data loss.
+  await delay(200); 
+  
   try {
-    const response = await getAi().models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [{ text: prompt }]
-      }
-    });
-
-    if (response.candidates && response.candidates.length > 0) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        }
-      }
-    }
+    const seed = Math.floor(Math.random() * 10000);
+    const safeWord = encodeURIComponent(word);
+    return `https://image.pollinations.ai/prompt/minimalist%20vector%20illustration%20of%20${safeWord}%20icon%20simple%20clean%20white%20background?nologo=true&seed=${seed}&width=300&height=300`;
+  } catch (e) {
+    console.warn("Image URL generation failed", e);
     return null;
-  } catch (error: any) {
-    // If API key is missing, fail fast
-    if (error.message && error.message.includes('API Key')) throw error;
-
-    const isRateLimit = error.status === 429 || (error.message && error.message.includes('429'));
-    const isServerOverload = error.status === 503;
-
-    if ((isRateLimit || isServerOverload) && attempt <= 3) {
-      const waitTime = 2000 * Math.pow(2, attempt - 1);
-      console.warn(`Gemini 429/503 hit. Retrying in ${waitTime}ms (Attempt ${attempt})...`);
-      await delay(waitTime);
-      return callGeminiImage(prompt, attempt + 1);
-    }
-    
-    throw error;
   }
 };
 
-export const generateWordImage = async (word: string): Promise<string | null> => {
-  return imageGenerationQueue.enqueue(async () => {
-    try {
-      const prompt = `Minimalist vector icon for "${word}", white background, flat design, single object, colorful.`;
-      const image = await callGeminiImage(prompt);
-      if (image) return image;
-    } catch (error) {
-      console.warn(`Gemini Image Generation exhausted for ${word}, switching to fallback.`);
-    }
+// Use Gemini 2.5 Flash Image (Banana) for Game Sprites
+export const generateGameAsset = async (prompt: string): Promise<string | null> => {
+  try {
+    const ai = getAi();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        // Updated prompt: Request transparent background for sprites
+        parts: [{ text: prompt + ", pixel art style, transparent background, isolated, single character, high contrast, video game asset sprite, full body, no background" }]
+      },
+      // Configs like aspectRatio are optional, 1:1 is default which is good for sprites
+    });
 
-    await delay(500);
-    try {
-      const seed = Math.floor(Math.random() * 10000);
-      const safeWord = encodeURIComponent(word);
-      return `https://image.pollinations.ai/prompt/minimalist%20flat%20vector%20icon%20${safeWord}%20white%20background?nologo=true&seed=${seed}&width=512&height=512`;
-    } catch (e) {
-      return null;
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
     }
-  });
+    return null;
+  } catch (e) {
+    console.error("Game asset generation failed", e);
+    return null;
+  }
 };
 
 // ==========================================
-// MEDIA & DATA FETCHING
+// DATA FETCHING
 // ==========================================
 
 export const fetchMediaForWord = async (word: WordData): Promise<WordData> => {
   const updatedWord = { ...word };
   let hasChanges = false;
 
-  // Only generate Image now. No more music fetching.
   if (!updatedWord.imageUrl) {
       const imageUrl = await generateWordImage(updatedWord.word);
       if (imageUrl) {
@@ -144,7 +81,10 @@ export const fetchMediaForWord = async (word: WordData): Promise<WordData> => {
   return hasChanges ? updatedWord : word;
 };
 
-// STREAMING Implementation
+// ==========================================
+// STREAMING VOCABULARY
+// ==========================================
+
 export const streamVocabularyEnrichment = async (
   words: string[],
   onWordReceived: (word: WordData) => void
@@ -185,7 +125,7 @@ export const streamVocabularyEnrichment = async (
   `;
 
   try {
-    const ai = getAi(); // Use the safe getter
+    const ai = getAi();
     const response = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -213,7 +153,6 @@ export const streamVocabularyEnrichment = async (
 
   } catch (error: any) {
     console.error("Gemini Streaming Error:", error);
-    // Propagate the specific API Key error if present
     if (error.message && (error.message.includes('API Key') || error.message.includes('API key'))) {
         throw error;
     }
@@ -237,7 +176,6 @@ const processLine = (line: string, callback: (word: WordData) => void) => {
     const item = JSON.parse(jsonString);
     
     if (item.word && item.definition) {
-        // Handle legacy string format if necessary, though we prefer object now
         let quoteObj = undefined;
         if (item.quote) {
           if (typeof item.quote === 'string') {

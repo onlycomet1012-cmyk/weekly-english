@@ -1,216 +1,98 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { WordInput } from './components/WordInput';
-import { QuizSession } from './components/QuizSession';
-import { Dashboard } from './components/Dashboard';
-import { WordData, AppState, StoredData } from './types';
-import { streamVocabularyEnrichment, fetchMediaForWord } from './services/geminiService';
-import { Toaster, toast } from 'react-hot-toast';
 
-const STORAGE_KEY = 'lexiweek_data_v2'; // Bumped version for new schema
+import React, { useState, useEffect } from 'react';
+import { GameArena } from './components/GameArena';
+import { WordData, AppState } from './types';
+import { Toaster } from 'react-hot-toast';
 
-// Helper: Calculate the timestamp of the most recent Saturday 18:00
-const getCurrentCycleStart = (): number => {
-  const now = new Date();
-  const day = now.getDay(); // 0 = Sun, 6 = Sat
-  const hour = now.getHours();
-  
-  const cycleStart = new Date(now);
-  cycleStart.setHours(18, 0, 0, 0);
-  
-  // If it is Saturday and past 18:00, the cycle started today.
-  if (day === 6 && hour >= 18) {
-    return cycleStart.getTime();
-  }
-  
-  // Otherwise, go back to the previous Saturday
-  // Sun(0) -> -1, Mon(1) -> -2 ... Fri(5) -> -6, Sat(6)before18h -> -7
-  const daysToSubtract = (day === 6) ? 7 : (day + 1);
-  cycleStart.setDate(cycleStart.getDate() - daysToSubtract);
-  return cycleStart.getTime();
-};
+// PRESET VOCABULARY LIST
+const PRESET_WORDS: WordData[] = [
+  { id: '1', word: 'birthday', definition: 'n. 生日', exampleSentence: 'Today is my birthday.', partOfSpeech: 'n', correctCount: 0, quote: { english: 'The more you praise and celebrate your life, the more there is in life to celebrate.', chinese: '你越赞美和庆祝你的生活，生活中就越值得庆祝。' } },
+  { id: '2', word: 'sausage', definition: 'n. 香肠', exampleSentence: 'We had sausage for breakfast.', partOfSpeech: 'n', correctCount: 0, quote: { english: 'Laws are like sausages, it is better not to see them being made.', chinese: '法律就像香肠，最好不要看到它们的制作过程。' } },
+  { id: '3', word: 'understand', definition: 'v. 理解', exampleSentence: 'Do you understand what I mean?', partOfSpeech: 'v', correctCount: 0, quote: { english: 'Everything that irritates us about others can lead us to an understanding of ourselves.', chinese: '别人让我们恼火的一切都能引导我们了解自己。' } },
+  { id: '4', word: 'moment', definition: 'n. 片刻; 瞬间', exampleSentence: 'Wait a moment please.', partOfSpeech: 'n', correctCount: 0, quote: { english: 'Life is not measured by the number of breaths we take, but by the moments that take our breath away.', chinese: '生命的衡量标准不是我们呼吸的次数，而是那些让我们屏住呼吸的时刻。' } },
+  { id: '5', word: 'cake', definition: 'n. 蛋糕', exampleSentence: 'I want a piece of cake.', partOfSpeech: 'n', correctCount: 0, quote: { english: 'Let them eat cake.', chinese: '让他们吃蛋糕吧。' } },
+  { id: '6', word: 'party', definition: 'n. 聚会', exampleSentence: 'Are you coming to the party?', partOfSpeech: 'n', correctCount: 0, quote: { english: 'A little party never killed nobody.', chinese: '小聚一下死不了人。' } },
+  { id: '7', word: 'fries', definition: 'n. 薯条', exampleSentence: 'I love french fries.', partOfSpeech: 'n', correctCount: 0, quote: { english: 'Keep your friends close and your fries closer.', chinese: '亲近你的朋友，更亲近你的薯条。' } },
+  { id: '8', word: 'lemonade', definition: 'n. 柠檬水', exampleSentence: 'She drank a glass of lemonade.', partOfSpeech: 'n', correctCount: 0, quote: { english: 'When life gives you lemons, make lemonade.', chinese: '当生活给你柠檬时，就把它做成柠檬水。' } },
+  { id: '9', word: 'burger', definition: 'n. 汉堡', exampleSentence: 'He ordered a cheese burger.', partOfSpeech: 'n', correctCount: 0, quote: { english: 'Life is like a burger, the more you add to it, the better it becomes.', chinese: '生活就像汉堡，加的料越多越好。' } },
+  { id: '10', word: 'bug', definition: 'n. 虫子; 故障', exampleSentence: 'There is a bug in the code.', partOfSpeech: 'n', correctCount: 0, quote: { english: 'It is not a bug, it is a feature.', chinese: '那不是Bug，那是特性。' } },
+  { id: '11', word: 'watermelon', definition: 'n. 西瓜', exampleSentence: 'Watermelon is sweet and juicy.', partOfSpeech: 'n', correctCount: 0, quote: { english: 'Watermelon – it’s a good fruit. You eat, you drink, you wash your face.', chinese: '西瓜是个好水果。又吃又喝还能洗脸。' } },
+  { id: '12', word: 'him', definition: 'pron. 他 (宾格)', exampleSentence: 'Give it to him.', partOfSpeech: 'pron', correctCount: 0, quote: { english: 'To know him is to love him.', chinese: '了解他就会爱上他。' } },
+  { id: '13', word: 'orange', definition: 'n. 橙子; 橙色', exampleSentence: 'Would you like an orange?', partOfSpeech: 'n', correctCount: 0, quote: { english: 'Orange is the new black.', chinese: '女子监狱 (美剧名，直译橙色是新的黑色)。' } },
+  { id: '14', word: 'menu', definition: 'n. 菜单', exampleSentence: 'Can I see the menu?', partOfSpeech: 'n', correctCount: 0, quote: { english: 'Life is like a menu, you have to wait your turn.', chinese: '生活就像菜单，你得等轮到你。' } }
+];
 
 const App: React.FC = () => {
-  const [appState, setAppState] = useState<AppState>(AppState.INPUT); // Default to Input first, will check storage
+  const [appState, setAppState] = useState<AppState>(AppState.INPUT); 
   const [words, setWords] = useState<WordData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [cycleStart, setCycleStart] = useState<number>(0);
   
-  const hasSwitchedToDashboardRef = useRef(false);
-
-  // 1. Initial Load & Cycle Check
+  // Initial Load - Force hardcoded words
   useEffect(() => {
-    const currentStart = getCurrentCycleStart();
-    setCycleStart(currentStart);
-    
-    const saved = localStorage.getItem(STORAGE_KEY);
-    
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        
-        // Handle migration from old array format to new object format
-        if (Array.isArray(parsed)) {
-          // Old format detected, force new input for the new system
-          localStorage.removeItem(STORAGE_KEY);
-          setAppState(AppState.INPUT);
-          return;
-        }
-
-        const storedData = parsed as StoredData;
-
-        // Check if data belongs to the current week cycle
-        if (storedData.cycleStart === currentStart && storedData.words.length > 0) {
-          setWords(storedData.words);
-          setAppState(AppState.DASHBOARD);
-          // toast.success('已加载本周词库', { duration: 2000, icon: '📂' });
-        } else {
-          // Data is stale (from last week), clear it
-          if (storedData.words.length > 0) {
-             toast('新的一周开始了 (周六 18:00 重置)', { icon: '📅', duration: 5000 });
-          }
-          setWords([]);
-          setAppState(AppState.INPUT);
-          localStorage.removeItem(STORAGE_KEY);
-        }
-      } catch (e) {
-        console.error("Failed to parse saved data", e);
-        setAppState(AppState.INPUT);
-      }
-    } else {
-      setAppState(AppState.INPUT);
-    }
+    setWords(PRESET_WORDS);
+    // State is already INPUT, which renders the lobby below
   }, []);
 
-  // 2. Persist Data (Auto-save)
+  // Gamepad Polling for Start Screen
   useEffect(() => {
-    if (loading) return; // Don't save empty state while loading
-    
-    // Only save if we have words OR if we are deliberately in INPUT mode (which usually means empty)
-    // But we strictly want to save valid words associated with current cycle.
-    if (words.length > 0 && cycleStart > 0) {
-       try {
-        // Create storage object
-        const dataToSave: StoredData = {
-          cycleStart: cycleStart,
-          words: words.map(w => {
-            // Optimization: Maybe don't save huge base64 images if quota is tight,
-            // but for now we try to save them to ensure offline availability.
-            // If quota fails, we strip images.
-            return w;
-          })
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-      } catch (e) {
-        // Quota exceeded fallback: strip images
-        if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
-           try {
-              const dataToSave: StoredData = {
-                cycleStart: cycleStart,
-                words: words.map(w => {
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                  const { imageUrl, ...rest } = w;
-                  return rest;
-                })
-              };
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-           } catch (retryError) { /* ignore */ }
+    if (appState !== AppState.INPUT) return;
+
+    let rafId: number;
+    let lastButtonState = false;
+
+    const pollGamepad = () => {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const gp = gamepads[0];
+      
+      if (gp) {
+        // Button 0 is usually A (Xbox) / X (PS) / B (Nintendo) - the primary bottom button
+        if (gp.buttons[0]?.pressed && !lastButtonState) {
+          setAppState(AppState.GAME);
+          return; 
         }
+        lastButtonState = gp.buttons[0]?.pressed;
       }
-    }
-  }, [words, cycleStart, loading]);
+      rafId = requestAnimationFrame(pollGamepad);
+    };
 
-  const handleUpdateWord = (wordId: string, updates: Partial<WordData>) => {
-    setWords(prev => prev.map(w => {
-      if (w.id !== wordId) return w;
-      return { ...w, ...updates };
-    }));
-  };
-  
-  const handleWordsSubmit = async (rawWords: string[]) => {
-    setLoading(true);
-    hasSwitchedToDashboardRef.current = false;
-    setWords([]);
-    
-    // Ensure we are using the fresh cycle timestamp
-    const nowStart = getCurrentCycleStart();
-    setCycleStart(nowStart);
-
-    try {
-      await streamVocabularyEnrichment(rawWords, async (textWord) => {
-        setWords(prev => [...prev, textWord]);
-
-        if (!hasSwitchedToDashboardRef.current) {
-          hasSwitchedToDashboardRef.current = true;
-          setLoading(false);
-          setAppState(AppState.DASHBOARD);
-          toast.success('词库生成中...');
-        }
-
-        // Background fetch (Images)
-        try {
-          const enrichedWord = await fetchMediaForWord(textWord);
-          if (enrichedWord.imageUrl) {
-            handleUpdateWord(enrichedWord.id, enrichedWord);
-          }
-        } catch (e) {
-          console.error(`Media fetch error for ${textWord.word}`, e);
-        }
-      });
-
-    } catch (error: any) {
-      console.error(error);
-      if (error.message && (error.message.includes('API Key') || error.message.includes('API_KEY'))) {
-        toast.error(error.message, { duration: 6000 });
-      } else {
-        toast.error('连接超时或服务不可用，请稍后重试。');
-      }
-      setLoading(false);
-    }
-  };
-
-  const handleManualReset = () => {
-    if (window.confirm("确定要重新输入吗？通常每周只需输入一次 (周六 18:00 自动更新)。")) {
-      setWords([]);
-      setAppState(AppState.INPUT);
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  };
+    rafId = requestAnimationFrame(pollGamepad);
+    return () => cancelAnimationFrame(rafId);
+  }, [appState]);
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 relative">
-      <div className="fixed inset-0 z-0 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 opacity-80 pointer-events-none"></div>
-      <div className="fixed top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 z-50"></div>
+    <div className="w-full h-screen bg-slate-900 overflow-hidden relative">
       
-      <main className="relative z-10 w-full max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 flex flex-col min-h-screen justify-center">
-        {appState === AppState.INPUT && (
-          <WordInput 
-            onSubmit={handleWordsSubmit} 
-            isLoading={loading} 
-            hasExistingData={words.length > 0}
-            onCancel={words.length > 0 ? () => setAppState(AppState.DASHBOARD) : undefined}
-          />
-        )}
+      {appState === AppState.INPUT && (
+        <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-pattern">
+             <div className="absolute inset-0 bg-slate-900 opacity-90 z-0"></div>
+             <div className="relative z-10 w-full max-w-4xl">
+                 <div className="bg-white rounded-2xl p-8 shadow-2xl text-center animate-fade-in-up">
+                     <h1 className="text-4xl font-black text-slate-800 mb-2">LexiSurvivor</h1>
+                     <p className="text-slate-500 mb-8">本周挑战词库已加载 {words.length} 个单词。</p>
+                     
+                     <div className="flex flex-col items-center gap-3">
+                         <button 
+                            onClick={() => setAppState(AppState.GAME)}
+                            className="py-4 px-12 bg-indigo-600 text-white font-bold rounded-xl text-xl shadow-lg hover:bg-indigo-700 hover:scale-105 transition-all"
+                         >
+                             ⚔️ 开始生存挑战
+                         </button>
+                         <div className="text-slate-400 text-sm font-bold animate-pulse tracking-widest border border-slate-600 rounded px-3 py-1 bg-slate-800">
+                            [ A ] START GAME
+                         </div>
+                     </div>
+                 </div>
+             </div>
+        </div>
+      )}
 
-        {appState === AppState.DASHBOARD && (
-          <Dashboard 
-            words={words} 
-            onStartQuiz={() => setAppState(AppState.QUIZ)}
-            onNewWeek={handleManualReset}
-            cycleStart={cycleStart}
-          />
-        )}
-
-        {appState === AppState.QUIZ && (
-          <QuizSession 
-            words={words}
-            onComplete={() => setAppState(AppState.DASHBOARD)}
-            onUpdateWord={handleUpdateWord}
-            onExit={() => setAppState(AppState.DASHBOARD)}
-          />
-        )}
-      </main>
+      {appState === AppState.GAME && (
+        <GameArena 
+          words={words} 
+          onExit={() => setAppState(AppState.INPUT)}
+        />
+      )}
       
-      <Toaster position="bottom-center" />
+      <Toaster position="top-center" />
     </div>
   );
 };

@@ -1,3 +1,4 @@
+
 // Singleton AudioContext to avoid hitting mobile browser limits
 let audioCtx: AudioContext | null = null;
 
@@ -121,7 +122,64 @@ export const playVictorySound = () => {
   noise.start(now + 0.45);
 };
 
-export const speakText = (text: string, rate: number = 0.9) => {
+export const playShootSound = () => {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  // Retro "Pew" sound: Square wave with fast frequency drop
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(800, now);
+  osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+
+  // Short, punchy envelope
+  gain.gain.setValueAtTime(0.05, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.1);
+};
+
+export const playHitSound = () => {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const t = ctx.currentTime;
+
+  // Impact noise (thud/splat)
+  const bufferSize = ctx.sampleRate * 0.1; // 100ms
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = buffer;
+
+  // Lowpass filter to make it sound like a solid hit rather than hiss
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(1000, t);
+  filter.frequency.linearRampToValueAtTime(100, t + 0.1);
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.2, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+
+  noise.start(t);
+};
+
+export const speakText = (text: string, rate: number = 1.0) => {
   if (!('speechSynthesis' in window)) return;
   
   // Cancel any ongoing speech
@@ -131,13 +189,26 @@ export const speakText = (text: string, rate: number = 0.9) => {
   utterance.lang = 'en-US';
   utterance.rate = rate; 
   
-  // Try to find a good English voice
+  // Adjust pitch slightly higher to sound "younger"
+  utterance.pitch = 1.15; 
+
   const voices = window.speechSynthesis.getVoices();
-  const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || 
-                         voices.find(v => v.lang.startsWith('en'));
   
-  if (preferredVoice) {
-    utterance.voice = preferredVoice;
+  // Priority list for female-sounding voices
+  // 'Samantha' (iOS/Mac), 'Google US English' (Android/Chrome), 'Microsoft Zira' (Windows), 'Jenny'
+  const preferredNames = ['Samantha', 'Google US English', 'Zira', 'Jenny', 'Susan', 'Vicki', 'Kathy'];
+  
+  const femaleVoice = voices.find(v => 
+    preferredNames.some(name => v.name.includes(name)) && v.lang.startsWith('en')
+  );
+
+  // Fallback: try to find any English voice
+  const fallbackVoice = voices.find(v => v.lang.startsWith('en'));
+  
+  if (femaleVoice) {
+    utterance.voice = femaleVoice;
+  } else if (fallbackVoice) {
+    utterance.voice = fallbackVoice;
   }
 
   window.speechSynthesis.speak(utterance);

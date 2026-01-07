@@ -64,7 +64,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ words, onStartQuiz, onNewW
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start mb-1">
-                  <h3 className="text-lg font-bold text-slate-800 capitalize group-hover:text-indigo-600 transition-colors truncate">
+                  <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">
                     {word.word}
                   </h3>
                   {word.correctCount > 0 && (
