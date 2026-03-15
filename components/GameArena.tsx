@@ -126,6 +126,8 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
       button0: false, button1: false, left: false, right: false, up: false, down: false
   });
 
+  const joystickRef = useRef({ active: false, id: -1, originX: 0, originY: 0, currentX: 0, currentY: 0, dx: 0, dy: 0 });
+
   const gameTimeRef = useRef(0);
   const isPausedRef = useRef(false);
   const animationFrameId = useRef<number>(0);
@@ -205,6 +207,74 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); };
+  }, []);
+
+  // VIRTUAL JOYSTICK TOUCH EVENTS
+  useEffect(() => {
+      const handleTouchStart = (e: TouchEvent) => {
+          if (isPausedRef.current) return;
+          for (let i = 0; i < e.changedTouches.length; i++) {
+              const touch = e.changedTouches[i];
+              if (!joystickRef.current.active) {
+                  joystickRef.current.active = true;
+                  joystickRef.current.id = touch.identifier;
+                  joystickRef.current.originX = touch.clientX;
+                  joystickRef.current.originY = touch.clientY;
+                  joystickRef.current.currentX = touch.clientX;
+                  joystickRef.current.currentY = touch.clientY;
+                  joystickRef.current.dx = 0;
+                  joystickRef.current.dy = 0;
+              }
+          }
+      };
+
+      const handleTouchMove = (e: TouchEvent) => {
+          if (!joystickRef.current.active) return;
+          for (let i = 0; i < e.changedTouches.length; i++) {
+              const touch = e.changedTouches[i];
+              if (touch.identifier === joystickRef.current.id) {
+                  joystickRef.current.currentX = touch.clientX;
+                  joystickRef.current.currentY = touch.clientY;
+                  
+                  let dx = touch.clientX - joystickRef.current.originX;
+                  let dy = touch.clientY - joystickRef.current.originY;
+                  const dist = Math.hypot(dx, dy);
+                  const maxDist = 50; 
+                  
+                  if (dist > maxDist) {
+                      dx = (dx / dist) * maxDist;
+                      dy = (dy / dist) * maxDist;
+                  }
+                  
+                  joystickRef.current.dx = dx / maxDist;
+                  joystickRef.current.dy = dy / maxDist;
+              }
+          }
+      };
+
+      const handleTouchEnd = (e: TouchEvent) => {
+          for (let i = 0; i < e.changedTouches.length; i++) {
+              const touch = e.changedTouches[i];
+              if (touch.identifier === joystickRef.current.id) {
+                  joystickRef.current.active = false;
+                  joystickRef.current.id = -1;
+                  joystickRef.current.dx = 0;
+                  joystickRef.current.dy = 0;
+              }
+          }
+      };
+
+      window.addEventListener('touchstart', handleTouchStart, { passive: false });
+      window.addEventListener('touchmove', handleTouchMove, { passive: false });
+      window.addEventListener('touchend', handleTouchEnd, { passive: false });
+      window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+      return () => {
+          window.removeEventListener('touchstart', handleTouchStart);
+          window.removeEventListener('touchmove', handleTouchMove);
+          window.removeEventListener('touchend', handleTouchEnd);
+          window.removeEventListener('touchcancel', handleTouchEnd);
+      };
   }, []);
 
   useEffect(() => {
@@ -466,7 +536,11 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
         gamepadButtonRef.current.button1 = gp.buttons[1]?.pressed;
     }
 
-    if (dx !== 0 || dy !== 0) {
+    if (dx !== 0 || dy !== 0 || joystickRef.current.active) {
+        if (joystickRef.current.active) {
+            dx += joystickRef.current.dx;
+            dy += joystickRef.current.dy;
+        }
         player.isMoving = true;
         player.direction = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'RIGHT' : 'LEFT') : (dy > 0 ? 'DOWN' : 'UP');
         // Simple normalization without Sqrt for movement logic is hard, keep Sqrt for player only (1 entity)
@@ -1248,20 +1322,17 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
                   <h2 className="text-3xl sm:text-5xl font-black text-yellow-400 mb-8">LEVEL UP!</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {showUpgrades.map((o, index) => (
-                          <div 
+                          <button 
                               key={o.id} 
-                              // Mouse is disabled via pointer-events-none
-                              className={`p-6 bg-slate-800 border-4 rounded-2xl flex flex-col items-center gap-2 transition-transform duration-100 pointer-events-none
-                                ${index === upgradeFocusedIndex ? 'border-yellow-400 scale-105 shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'border-slate-600 opacity-80'}
+                              onClick={() => applyUpgrade(o)}
+                              className={`p-6 bg-slate-800 border-4 rounded-2xl flex flex-col items-center gap-2 transition-transform duration-100 hover:scale-105 active:scale-95
+                                ${index === upgradeFocusedIndex ? 'border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'border-slate-600 opacity-80'}
                               `}
                           >
                               <span className="text-4xl">{o.icon}</span>
                               <span className="font-bold text-white">{o.name}</span>
                               <span className="text-xs text-slate-400">{o.description}</span>
-                              {index === upgradeFocusedIndex && (
-                                  <div className="mt-2 text-xs text-yellow-400 font-bold animate-pulse">[ A ] SELECT</div>
-                              )}
-                          </div>
+                          </button>
                       ))}
                   </div>
               </div>
@@ -1283,7 +1354,6 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
                     className="w-full py-6 font-black text-2xl rounded-2xl mb-3 transition-all border-4 bg-slate-800 text-white scale-105 border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.4)] hover:bg-slate-700 active:scale-95"
                   >
                     RETRY
-                    <span className="ml-3 text-sm text-yellow-400 animate-pulse">[ A ]</span>
                   </button>
               </div>
           </div>

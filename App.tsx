@@ -116,7 +116,7 @@ const App: React.FC = () => {
                              开始生存挑战
                          </button>
                          <div className="text-slate-400 text-sm font-bold animate-pulse tracking-widest border border-slate-600 rounded px-3 py-1 bg-slate-800">
-                            [ A ] START GAME
+                            TAP TO START
                          </div>
                      </div>
                  </div>
