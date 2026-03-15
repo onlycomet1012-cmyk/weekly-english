@@ -28,7 +28,7 @@ interface GameArenaProps {
 
 // === CONFIGURATION ===
 const SPAWN_RATE_INITIAL = 100; 
-const BASE_XP_REQUIREMENT = 10;
+const BASE_XP_REQUIREMENT = 5;
 const GAME_WIDTH = 1920;
 const GAME_HEIGHT = 1080;
 
@@ -921,7 +921,7 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
                }
                recycleEntity(xpGemsRef.current, gemPoolRef.current, furthestIdx);
           }
-          const isSnack = Math.random() < 0.05; 
+          const isSnack = Math.random() < 0.01; 
           
           const drop = spawnFromPool(gemPoolRef.current, {
               id: '', 
@@ -1032,8 +1032,8 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
       statsRef.current.level++; 
       statsRef.current.damage += 1; 
       statsRef.current.xp = 0; 
-      // Reduced scaling from 1.6 to 1.4 for ~20% easier leveling curve
-      statsRef.current.xpToNextLevel = Math.ceil(statsRef.current.xpToNextLevel * 1.4); 
+      // Reduced scaling from 1.4 to 1.2 for much easier leveling curve
+      statsRef.current.xpToNextLevel = Math.ceil(statsRef.current.xpToNextLevel * 1.2); 
       if (statsRef.current.activeElement !== 'NONE') {
          setBgmTheme(statsRef.current.activeElement);
       }
