@@ -946,15 +946,22 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
 
       const time = gameTimeRef.current;
       const level = statsRef.current.level;
-      let spawnRate = Math.max(3, Math.floor(SPAWN_RATE_INITIAL / Math.pow(1.5, level - 1)));
+      
+      // As level increases, spawn rate decreases (faster spawns)
+      let spawnRate = Math.max(5, Math.floor(SPAWN_RATE_INITIAL / Math.pow(1.2, level - 1)));
       
       if (remainingWordsRef.current.length === 0 && !bossSpawnedRef.current && !quizWord) {
           spawnEntity('BOSS'); bossSpawnedRef.current = true; return;
       }
       if (frameCountRef.current % spawnRate === 0) {
-          const r = Math.random();
-          let type = (statsRef.current.level > 1 && time > 30 && r > 0.9) ? 'ELITE' : 'MOB';
-          spawnEntity(type as any);
+          // As level increases, spawn more enemies at once
+          const spawnCount = 1 + Math.floor(level / 3);
+          for (let i = 0; i < spawnCount; i++) {
+              if (enemiesRef.current.length >= MAX_ENEMIES) break;
+              const r = Math.random();
+              let type = (statsRef.current.level > 1 && time > 30 && r > 0.9) ? 'ELITE' : 'MOB';
+              spawnEntity(type as any);
+          }
       }
   };
 
