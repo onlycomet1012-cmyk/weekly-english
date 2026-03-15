@@ -965,13 +965,17 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
       }
   };
 
-  const spawnEntity = (category: 'MOB' | 'ELITE' | 'BOSS') => {
+  const spawnEntity = (category: 'MOB' | 'ELITE' | 'BOSS', customX?: number, customY?: number) => {
       const side = Math.floor(Math.random() * 4);
-      let x = 0, y = 0;
-      if (side === 0) { x = Math.random() * GAME_WIDTH; y = -100; }
-      else if (side === 1) { x = GAME_WIDTH + 100; y = Math.random() * GAME_HEIGHT; }
-      else if (side === 2) { x = Math.random() * GAME_WIDTH; y = GAME_HEIGHT + 100; }
-      else { x = -100; y = Math.random() * GAME_HEIGHT; }
+      let x = customX !== undefined ? customX : 0;
+      let y = customY !== undefined ? customY : 0;
+      
+      if (customX === undefined || customY === undefined) {
+          if (side === 0) { x = Math.random() * GAME_WIDTH; y = -100; }
+          else if (side === 1) { x = GAME_WIDTH + 100; y = Math.random() * GAME_HEIGHT; }
+          else if (side === 2) { x = Math.random() * GAME_WIDTH; y = GAME_HEIGHT + 100; }
+          else { x = -100; y = Math.random() * GAME_HEIGHT; }
+      }
       
       const fallback: Entity = {
           id: Math.random().toString(), x, y, vx: 0, vy: 0, 
@@ -1063,6 +1067,22 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
               remainingWordsRef.current.push(quizWord);
           }
           statsRef.current.xp = 0; 
+          
+          // Spawn a massive punishment wave to overwhelm the player
+          const waveSize = 30 + statsRef.current.level * 5;
+          const radius = 400; // Spawn them in a circle around the player
+          const px = playerRef.current.x;
+          const py = playerRef.current.y;
+          
+          for (let i = 0; i < waveSize; i++) {
+              if (enemiesRef.current.length >= MAX_ENEMIES) break;
+              const type = Math.random() > 0.85 ? 'ELITE' : 'MOB';
+              const angle = (Math.PI * 2 * i) / waveSize;
+              const spawnX = px + Math.cos(angle) * radius;
+              const spawnY = py + Math.sin(angle) * radius;
+              spawnEntity(type as any, spawnX, spawnY);
+          }
+          
           isPausedRef.current = false; 
       } 
   };
