@@ -40,10 +40,26 @@ export interface PlayerStats {
   attackSpeed: number; // Cooldown in frames
   projectileSpeed: number;
   pickupRange: number;
-  projectileCount: number; // New: Number of bullets per shot
+  projectileCount: number; // Number of bullets per shot
   level: number;
   xp: number;
   xpToNextLevel: number;
+  
+  // Elemental Logic (Mutually Exclusive)
+  activeElement: 'NONE' | 'FIRE' | 'ICE' | 'LIGHTNING' | 'WIND';
+  
+  // Detailed Elemental Stats
+  fireLevel: number;
+  burnDamage: number; // Damage per tick
+  
+  iceLevel: number;
+  freezeDuration: number; // In frames (60fps)
+  
+  lightningLevel: number;
+  chainCount: number; // Number of bounces
+  
+  windLevel: number;
+  windRadius: number; // Radius of effect
 }
 
 export interface SpriteSource {
@@ -59,7 +75,7 @@ export interface Entity {
   y: number;
   width: number;
   height: number;
-  type: 'HERO' | 'MOB' | 'ELITE' | 'ELITE_RANGED' | 'BOSS' | 'XP' | 'PROJECTILE' | 'ENEMY_PROJECTILE';
+  type: 'HERO' | 'MOB' | 'ELITE' | 'ELITE_RANGED' | 'BOSS' | 'XP' | 'SNACK' | 'PROJECTILE' | 'ENEMY_PROJECTILE';
   subtype?: number; // For different mob skins
   vx: number;
   vy: number;
@@ -74,6 +90,14 @@ export interface Entity {
   animFrame?: number;
   lastAnimTime?: number;
   isMoving?: boolean;
+  
+  // Projectile Properties
+  element?: 'NORMAL' | 'FIRE' | 'ICE' | 'LIGHTNING' | 'WIND';
+
+  // Enemy Status Effects
+  freezeTimer?: number;
+  burnTimer?: number;
+  burnDamageRef?: number; // Snapshot of burn damage to apply
 }
 
 export interface UpgradeOption {
@@ -82,4 +106,5 @@ export interface UpgradeOption {
   description: string;
   apply: (stats: PlayerStats) => PlayerStats;
   icon: string;
+  weight?: number; // Used for probability calculation
 }

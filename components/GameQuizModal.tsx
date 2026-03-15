@@ -8,16 +8,15 @@ interface GameQuizModalProps {
   onResult: (correct: boolean) => void;
 }
 
-type QuizMode = 'SPELL_FROM_DEF' | 'SPELL_FROM_AUDIO' | 'MEANING_FROM_WORD';
+type QuizMode = 'WORD_FROM_DEF' | 'WORD_FROM_AUDIO' | 'DEF_FROM_WORD';
 
 export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, onResult }) => {
-  const [mode, setMode] = useState<QuizMode>('SPELL_FROM_DEF');
-  const [input, setInput] = useState('');
+  const [mode, setMode] = useState<QuizMode>('WORD_FROM_DEF');
   const [choices, setChoices] = useState<WordData[]>([]);
   const [status, setStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle');
   const [focusedChoiceIndex, setFocusedChoiceIndex] = useState(0);
   
-  const inputRef = useRef<HTMLInputElement>(null);
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
   
   // Track input method State to drive UI pointer-events
   const [inputMethod, setInputMethod] = useState<'MOUSE' | 'GAMEPAD'>('GAMEPAD');
@@ -45,29 +44,26 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
 
   // Setup
   useEffect(() => {
-    const modes: QuizMode[] = ['SPELL_FROM_DEF', 'SPELL_FROM_AUDIO', 'MEANING_FROM_WORD'];
+    const modes: QuizMode[] = ['WORD_FROM_DEF', 'WORD_FROM_AUDIO', 'DEF_FROM_WORD'];
     const selectedMode = modes[Math.floor(Math.random() * modes.length)];
     setMode(selectedMode);
 
-    if (selectedMode === 'MEANING_FROM_WORD') {
-      const distractors = allWords
-        .filter(w => w.id !== word.id)
-        .sort(() => 0.5 - Math.random())
-        .slice(0, 3);
-      const options = [word, ...distractors].sort(() => 0.5 - Math.random());
-      setChoices(options);
-    } else if (selectedMode === 'SPELL_FROM_AUDIO') {
+    const distractors = allWords
+      .filter(w => w.id !== word.id)
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 3);
+    const options = [word, ...distractors].sort(() => 0.5 - Math.random());
+    setChoices(options);
+
+    if (selectedMode === 'WORD_FROM_AUDIO') {
       setTimeout(() => speakText(word.word), 300);
     }
-    
-    // Auto focus
-    setTimeout(() => inputRef.current?.focus(), 100);
   }, [word, allWords]);
 
   // Keyboard Support for Choices
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (mode === 'MEANING_FROM_WORD' && status === 'idle') {
+        if (status === 'idle') {
             if (['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'Enter', ' '].includes(e.key)) {
                 setInputMethod('GAMEPAD');
             }
@@ -84,15 +80,19 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
                 }
             }
         }
+        // Support 'Enter' for Next Button (status === 'correct')
+        if (status === 'correct') {
+             if (e.key === 'Enter' || e.key === ' ') {
+                 onResult(true);
+             }
+        }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [mode, status, choices, focusedChoiceIndex]);
 
-  // Gamepad Polling for Multiple Choice
+  // Gamepad Polling Logic (Fixed for all states)
   useEffect(() => {
-    if (mode !== 'MEANING_FROM_WORD' || status !== 'idle') return;
-
     let lastAxisY = 0;
     let lastAxisX = 0;
     let lastButtonState = false;
@@ -102,44 +102,54 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
         const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
         const gp = gamepads[0];
         if (gp) {
+            const btnA = gp.buttons[0]?.pressed; // A / Cross
+            
             // Check for activity to switch input method
             const hasActivity = Math.abs(gp.axes[0]) > 0.5 || Math.abs(gp.axes[1]) > 0.5 || gp.buttons.some(b => b.pressed);
             if (hasActivity) {
                  if (inputMethod !== 'GAMEPAD') setInputMethod('GAMEPAD');
             }
 
-            const axisX = gp.axes[0];
-            const axisY = gp.axes[1];
-            
-            // Grid is 2x2. 0,1 top row. 2,3 bottom row.
-            
-            // Left/Right
-            if ((axisX < -0.5 || gp.buttons[14]?.pressed) && lastAxisX >= -0.5) { // Left
-                setFocusedChoiceIndex(prev => (prev % 2 === 1) ? prev - 1 : prev); 
-            }
-            if ((axisX > 0.5 || gp.buttons[15]?.pressed) && lastAxisX <= 0.5) { // Right
-                setFocusedChoiceIndex(prev => (prev % 2 === 0) ? Math.min(3, prev + 1) : prev);
-            }
+            // 1. Handle Navigation Logic (Idle status)
+            if (status === 'idle') {
+                const axisX = gp.axes[0];
+                const axisY = gp.axes[1];
+                
+                // Left/Right
+                if ((axisX < -0.5 || gp.buttons[14]?.pressed) && lastAxisX >= -0.5) { // Left
+                    setFocusedChoiceIndex(prev => (prev % 2 === 1) ? prev - 1 : prev); 
+                }
+                if ((axisX > 0.5 || gp.buttons[15]?.pressed) && lastAxisX <= 0.5) { // Right
+                    setFocusedChoiceIndex(prev => (prev % 2 === 0) ? Math.min(3, prev + 1) : prev);
+                }
 
-            // Up/Down
-            if ((axisY < -0.5 || gp.buttons[12]?.pressed) && lastAxisY >= -0.5) { // Up
-                setFocusedChoiceIndex(prev => (prev >= 2) ? prev - 2 : prev);
-            }
-            if ((axisY > 0.5 || gp.buttons[13]?.pressed) && lastAxisY <= 0.5) { // Down
-                setFocusedChoiceIndex(prev => (prev < 2) ? prev + 2 : prev);
-            }
+                // Up/Down
+                if ((axisY < -0.5 || gp.buttons[12]?.pressed) && lastAxisY >= -0.5) { // Up
+                    setFocusedChoiceIndex(prev => (prev >= 2) ? prev - 2 : prev);
+                }
+                if ((axisY > 0.5 || gp.buttons[13]?.pressed) && lastAxisY <= 0.5) { // Down
+                    setFocusedChoiceIndex(prev => (prev < 2) ? prev + 2 : prev);
+                }
 
-            lastAxisX = axisX;
-            lastAxisY = axisY;
-
-            // Select (Button 0 = A / Cross)
-            if (gp.buttons[0]?.pressed && !lastButtonState) {
-                // Ensure choices exists and index is valid
-                if (choices && choices[focusedChoiceIndex]) {
-                    checkChoice(choices[focusedChoiceIndex].id);
+                lastAxisX = axisX;
+                lastAxisY = axisY;
+                
+                // Select Option
+                if (btnA && !lastButtonState) {
+                    if (choices && choices[focusedChoiceIndex]) {
+                        checkChoice(choices[focusedChoiceIndex].id);
+                    }
+                }
+            } 
+            // 2. Handle "Next" Button logic (Correct status)
+            else if (status === 'correct') {
+                if (btnA && !lastButtonState) {
+                    // Slight delay to prevent double tapping from choice selection
+                    setTimeout(() => onResult(true), 50);
                 }
             }
-            lastButtonState = gp.buttons[0]?.pressed;
+
+            lastButtonState = btnA;
         }
         
         rafId = requestAnimationFrame(pollGamepad);
@@ -154,7 +164,10 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
     setStatus('correct');
     playSuccessSound();
     speakText(word.word);
-    setTimeout(() => onResult(true), 1200);
+    setTimeout(() => {
+        // Auto-focus next button for keyboard users
+        nextButtonRef.current?.focus();
+    }, 100);
   };
 
   const handleIncorrect = () => {
@@ -162,15 +175,6 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
     playErrorSound();
     speakText(word.word); // Teach them
     setTimeout(() => onResult(false), 2000); // Longer delay to see answer
-  };
-
-  const checkSpelling = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input.trim().toLowerCase() === word.word.toLowerCase()) {
-      handleCorrect();
-    } else {
-      handleIncorrect();
-    }
   };
 
   const checkChoice = (selectedId: string) => {
@@ -193,16 +197,16 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
 
         {/* Content */}
         <div className="mb-8 min-h-[150px] flex flex-col justify-center items-center">
-          {mode === 'SPELL_FROM_DEF' && (
+          {mode === 'WORD_FROM_DEF' && (
              <>
-               <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mb-4">看义拼词</span>
+               <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mb-4">看义选词</span>
                <p className="text-2xl font-bold text-slate-800 text-center">{word.definition}</p>
              </>
           )}
           
-          {mode === 'SPELL_FROM_AUDIO' && (
+          {mode === 'WORD_FROM_AUDIO' && (
             <>
-              <span className="bg-pink-100 text-pink-700 px-3 py-1 rounded-full text-xs font-bold mb-4">听音拼词</span>
+              <span className="bg-pink-100 text-pink-700 px-3 py-1 rounded-full text-xs font-bold mb-4">听音选词</span>
               <button 
                 onClick={() => speakText(word.word)}
                 className="w-20 h-20 bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-indigo-600 active:scale-95 transition-all"
@@ -212,14 +216,16 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
             </>
           )}
 
-          {mode === 'MEANING_FROM_WORD' && (
-             <h1 className="text-5xl font-black text-slate-800 mb-4">{word.word}</h1>
+          {mode === 'DEF_FROM_WORD' && (
+             <>
+               <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold mb-4">看词选义</span>
+               <h1 className="text-5xl font-black text-slate-800 mb-4">{word.word}</h1>
+             </>
           )}
         </div>
 
         {/* Inputs */}
         <div className="w-full">
-          {mode === 'MEANING_FROM_WORD' ? (
             <div className="grid grid-cols-2 gap-4">
               {choices.map((choice, index) => (
                 <button
@@ -239,7 +245,7 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
                       focusedChoiceIndex === index ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-300 text-indigo-700 scale-105 z-10' :
                       'bg-slate-100 border-slate-300 hover:bg-indigo-50 hover:border-indigo-300 text-slate-700'}`}
                 >
-                  {choice.definition}
+                  {mode === 'DEF_FROM_WORD' ? choice.definition : choice.word}
                   {focusedChoiceIndex === index && status === 'idle' && (
                       <div className="absolute top-1 right-2 text-indigo-400 text-xs font-bold">
                           {inputMethod === 'GAMEPAD' ? '[A]' : ''}
@@ -248,30 +254,21 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
                 </button>
               ))}
             </div>
-          ) : (
-            <form onSubmit={checkSpelling}>
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={(e) => e.stopPropagation()} // Stop W/A/S/D from moving character
-                onKeyUp={(e) => e.stopPropagation()}
-                disabled={status !== 'idle'}
-                placeholder="输入单词..."
-                className={`w-full text-center text-4xl font-mono font-bold py-4 border-b-4 bg-transparent outline-none transition-colors
-                  ${status === 'correct' ? 'border-green-500 text-green-600' : 
-                    status === 'incorrect' ? 'border-red-500 text-red-500' : 'border-slate-300 focus:border-indigo-500 text-slate-800'}`}
-                autoComplete="off"
-              />
-              {status === 'incorrect' && (
-                <div className="text-center mt-2 text-red-500 font-bold animate-fade-in">
-                  正确答案: {word.word}
-                </div>
-              )}
-            </form>
-          )}
         </div>
+        
+        {/* Next Button / Continue Hint */}
+        {status === 'correct' && (
+            <div className="mt-6 flex justify-center animate-fade-in-up">
+                <button 
+                    ref={nextButtonRef}
+                    onClick={() => onResult(true)}
+                    className="px-8 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95 flex items-center gap-2"
+                >
+                    CONTINUE 
+                    <span className="bg-green-700 px-2 py-0.5 rounded text-xs ml-2 animate-pulse">[ A ]</span>
+                </button>
+            </div>
+        )}
       </div>
     </div>
   );
