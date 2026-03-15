@@ -239,15 +239,26 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
                   let dx = touch.clientX - joystickRef.current.originX;
                   let dy = touch.clientY - joystickRef.current.originY;
                   const dist = Math.hypot(dx, dy);
-                  const maxDist = 50; 
                   
-                  if (dist > maxDist) {
-                      dx = (dx / dist) * maxDist;
-                      dy = (dy / dist) * maxDist;
+                  // Floating origin: pull the origin along if finger moves too far
+                  // This makes changing directions instantly responsive
+                  const maxRadius = 40;
+                  if (dist > maxRadius) {
+                      joystickRef.current.originX = touch.clientX - (dx / dist) * maxRadius;
+                      joystickRef.current.originY = touch.clientY - (dy / dist) * maxRadius;
+                      dx = touch.clientX - joystickRef.current.originX;
+                      dy = touch.clientY - joystickRef.current.originY;
                   }
                   
-                  joystickRef.current.dx = dx / maxDist;
-                  joystickRef.current.dy = dy / maxDist;
+                  // Small deadzone, then normalize to 1 for FULL SPEED movement
+                  if (dist > 5) {
+                      const currentDist = Math.hypot(dx, dy);
+                      joystickRef.current.dx = dx / currentDist;
+                      joystickRef.current.dy = dy / currentDist;
+                  } else {
+                      joystickRef.current.dx = 0;
+                      joystickRef.current.dy = 0;
+                  }
               }
           }
       };
