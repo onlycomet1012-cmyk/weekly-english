@@ -160,51 +160,94 @@ const SNACK_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
 
 // 1. Normal (Magic Missile)
 const PROJ_NORMAL_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <radialGradient id="grad1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#fbbf24;stop-opacity:0" />
+    <radialGradient id="normGrad" cx="60%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="30%" stop-color="#fcd34d" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#d97706" stop-opacity="0"/>
     </radialGradient>
+    <linearGradient id="normTail" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#d97706" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#fcd34d" stop-opacity="0.8"/>
+    </linearGradient>
   </defs>
-  <circle cx="16" cy="16" r="12" fill="url(#grad1)" />
-  <circle cx="16" cy="16" r="6" fill="#fbbf24" />
+  <path d="M 4 32 Q 24 22 44 32 Q 24 42 4 32 Z" fill="url(#normTail)" />
+  <circle cx="44" cy="32" r="14" fill="url(#normGrad)" />
+  <circle cx="44" cy="32" r="6" fill="#ffffff" />
+  <polygon points="44,22 47,29 54,32 47,35 44,42 41,35 34,32 41,29" fill="#ffffff" opacity="0.8"/>
 </svg>
 `.trim())}`;
 
 // 2. Fire (Fireball)
 const PROJ_FIRE_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-  <!-- Flame Shape, rotated to point right by default -->
-  <path d="M4 16 Q16 0 28 16 Q16 32 4 16 Z" fill="#ef4444" />
-  <path d="M8 16 Q16 6 24 16 Q16 26 8 16 Z" fill="#fca5a5" />
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="fireGrad" cx="60%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="20%" stop-color="#fef08a"/>
+      <stop offset="60%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#7f1d1d" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <path d="M 8 32 Q 24 12 48 24 Q 60 32 48 40 Q 24 52 8 32 Z" fill="#ea580c" opacity="0.6" />
+  <path d="M 16 32 Q 32 18 52 28 Q 58 32 52 36 Q 32 46 16 32 Z" fill="#ef4444" />
+  <path d="M 24 32 Q 40 24 54 30 Q 56 32 54 34 Q 40 40 24 32 Z" fill="#fef08a" />
+  <circle cx="48" cy="32" r="16" fill="url(#fireGrad)" />
 </svg>
 `.trim())}`;
 
 // 3. Ice (Shard)
 const PROJ_ICE_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-  <!-- Diamond Shard -->
-  <path d="M2 16 L16 2 L30 16 L16 30 Z" fill="#0ea5e9" stroke="#e0f2fe" stroke-width="2"/>
-  <path d="M16 8 L24 16 L16 24 L8 16 Z" fill="#bae6fd" />
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="iceGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="50%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <path d="M 8 32 L 32 12 L 60 32 L 32 52 Z" fill="#bae6fd" opacity="0.3" />
+  <path d="M 12 32 L 36 16 L 56 32 L 36 48 Z" fill="url(#iceGrad)" stroke="#e0f2fe" stroke-width="1.5"/>
+  <path d="M 20 32 L 36 22 L 50 32 L 36 42 Z" fill="#e0f2fe" opacity="0.8"/>
+  <path d="M 36 22 L 50 32 L 36 42 Z" fill="#ffffff" opacity="0.9"/>
+  <polygon points="8,24 16,20 20,24 16,28" fill="#7dd3fc" opacity="0.7"/>
+  <polygon points="12,42 20,38 24,42 20,46" fill="#7dd3fc" opacity="0.7"/>
 </svg>
 `.trim())}`;
 
 // 4. Lightning (Ball/Spark)
 const PROJ_LIGHTNING_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-   <circle cx="16" cy="16" r="14" fill="rgba(59, 130, 246, 0.3)" />
-   <path d="M18 2 L10 16 L16 16 L14 30 L22 16 L16 16 Z" fill="#facc15" stroke="white" stroke-width="1"/>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="elecGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="40%" stop-color="#60a5fa" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#1e3a8a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="28" fill="url(#elecGrad)" />
+  <path d="M 12 32 L 24 16 L 32 28 L 48 12 L 40 32 L 56 40 L 36 36 L 24 52 Z" fill="none" stroke="#bfdbfe" stroke-width="2" opacity="0.8"/>
+  <path d="M 16 32 L 28 20 L 36 32 L 52 16 L 44 36 L 60 44 L 40 40 L 28 56 Z" fill="none" stroke="#60a5fa" stroke-width="1" opacity="0.5"/>
+  <path d="M 8 32 L 28 24 L 32 32 L 56 24 L 36 40 L 32 32 Z" fill="#ffffff" />
 </svg>
 `.trim())}`;
 
 // 5. Wind (Swirl)
 const PROJ_WIND_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-  <path d="M16 16 m -10, 0 a 10,10 0 1,0 20,0 a 10,10 0 1,0 -20,0" fill="none" stroke="#a7f3d0" stroke-width="3" stroke-dasharray="10 5" opacity="0.8">
-    <animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="0.5s" repeatCount="indefinite"/>
-  </path>
-  <circle cx="16" cy="16" r="6" fill="#d1fae5" />
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="windGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#6ee7b7" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#059669" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="24" fill="url(#windGrad)" />
+  <path d="M 16 32 C 16 16, 48 16, 48 32 C 48 48, 16 48, 16 32" fill="none" stroke="#a7f3d0" stroke-width="4" stroke-linecap="round" stroke-dasharray="20 10" opacity="0.9" />
+  <path d="M 24 32 C 24 24, 40 24, 40 32 C 40 40, 24 40, 24 32" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-dasharray="10 5" />
+  <path d="M 4 24 Q 16 24 24 32" fill="none" stroke="#6ee7b7" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 4 40 Q 16 40 24 32" fill="none" stroke="#6ee7b7" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
 </svg>
 `.trim())}`;
 

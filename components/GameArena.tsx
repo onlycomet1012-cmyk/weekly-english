@@ -1237,6 +1237,7 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
         if (g.type === 'SNACK') {
             const img = spritesRef.current['SNACK'];
             if (img && img.complete) {
+                ctx.imageSmoothingEnabled = true;
                 ctx.drawImage(img, gx - 12, gy - 12, 24, 24);
             } else {
                 ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(gx, gy, 8, 0, Math.PI*2); ctx.fill();
@@ -1244,6 +1245,7 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
         } else {
             const img = spritesRef.current['XP'];
             if (img && img.complete) {
+                ctx.imageSmoothingEnabled = true;
                 ctx.drawImage(img, gx - 10, gy - 10, 20, 20);
             } else {
                 ctx.fillStyle = '#60a5fa'; ctx.beginPath(); ctx.arc(gx, gy, 8, 0, Math.PI*2); ctx.fill(); 
@@ -1294,18 +1296,12 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
 
         const img = spritesRef.current[spriteKey];
         if (img && img.complete) {
-             // OPTIMIZATION: Skip rotation for symmetric projectiles (Normal/Lightning)
-             const isSymmetric = p.element === 'NORMAL' || p.element === 'LIGHTNING';
-             
-             if (isSymmetric) {
-                 ctx.drawImage(img, (p.x | 0) - p.width/2, (p.y | 0) - p.height/2, p.width, p.height);
-             } else {
-                 ctx.save();
-                 ctx.translate(p.x | 0, p.y | 0);
-                 ctx.rotate(Math.atan2(p.vy, p.vx));
-                 ctx.drawImage(img, -p.width/2, -p.height/2, p.width, p.height);
-                 ctx.restore();
-             }
+             ctx.save();
+             ctx.imageSmoothingEnabled = true;
+             ctx.translate(p.x | 0, p.y | 0);
+             ctx.rotate(Math.atan2(p.vy, p.vx));
+             ctx.drawImage(img, -p.width/2, -p.height/2, p.width, p.height);
+             ctx.restore();
         } else {
             ctx.fillStyle = p.element === 'FIRE' ? '#ef4444' : (p.element === 'ICE' ? '#fff' : (p.element === 'LIGHTNING' ? '#3b82f6' : '#94a3b8')); 
             ctx.beginPath(); ctx.arc(p.x | 0, p.y | 0, p.width/2, 0, Math.PI*2); ctx.fill(); 
