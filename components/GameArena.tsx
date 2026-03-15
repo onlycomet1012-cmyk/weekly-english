@@ -24,6 +24,7 @@ import {
 interface GameArenaProps {
   words: WordData[];
   onExit: () => void;
+  aiSpriteUrl?: string | null;
 }
 
 // === CONFIGURATION ===
@@ -68,7 +69,7 @@ interface Particle {
     size: number; color: string;
 }
 
-export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
+export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -133,6 +134,7 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
   const animationFrameId = useRef<number>(0);
   const spritesRef = useRef<Record<string, HTMLImageElement>>({});
   const spriteSheetRef = useRef<HTMLImageElement | null>(null);
+  const aiHeroSpriteRef = useRef<HTMLImageElement | null>(null);
   const areResourcesLoadedRef = useRef(false);
   const [areResourcesLoaded, setAreResourcesLoaded] = useState(false);
   const remainingWordsRef = useRef<WordData[]>([]);
@@ -196,10 +198,33 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
     const sheetDataUrl = generateProceduralSpriteSheet();
     const sheet = new Image();
     sheet.src = sheetDataUrl;
-    sheet.onload = () => { spriteSheetRef.current = sheet; areResourcesLoadedRef.current = true; setAreResourcesLoaded(true); };
+    
+    let loadedCount = 0;
+    const checkLoaded = () => {
+      loadedCount++;
+      if (loadedCount === (aiSpriteUrl ? 2 : 1)) {
+        areResourcesLoadedRef.current = true; 
+        setAreResourcesLoaded(true);
+      }
+    };
+
+    sheet.onload = () => { 
+      spriteSheetRef.current = sheet; 
+      checkLoaded();
+    };
+
+    if (aiSpriteUrl) {
+      const aiSheet = new Image();
+      aiSheet.src = aiSpriteUrl;
+      aiSheet.onload = () => {
+        aiHeroSpriteRef.current = aiSheet;
+        checkLoaded();
+      };
+    }
+
     loadBasicAssets((k, u) => { const img = new Image(); img.src = u; spritesRef.current[k] = img; });
     return () => { stopBGM(); cancelAnimationFrame(animationFrameId.current); };
-  }, []);
+  }, [words, aiSpriteUrl]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { keysRef.current[e.key.toLowerCase()] = true; };
@@ -1113,6 +1138,69 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit }) => {
         const drawY = (e.y - e.height/2) | 0;
 
         if (e.type === 'HERO') {
+            if (aiHeroSpriteRef.current && aiHeroSpriteRef.current.complete) {
+                const img = aiHeroSpriteRef.current;
+                
+                ctx.save();
+                ctx.imageSmoothingEnabled = true;
+                
+                // Simple bobbing animation when moving
+                const bobOffset = e.isMoving ? Math.sin(Date.now() / 150) * 4 : Math.sin(Date.now() / 300) * 2;
+                
+                // Dynamic tilt based on movement direction
+                let tilt = 0;
+                if (e.isMoving) {
+                    if (e.direction === 'LEFT') tilt = -0.15;
+                    else if (e.direction === 'RIGHT') tilt = 0.15;
+                    else if (e.direction === 'UP') tilt = Math.sin(Date.now() / 100) * 0.1;
+                    else if (e.direction === 'DOWN') tilt = Math.sin(Date.now() / 100) * 0.1;
+                }
+
+                // Draw Magic Circle underneath
+                ctx.save();
+                ctx.translate(e.x, e.y + e.height / 2 - 5);
+                ctx.scale(1, 0.3);
+                ctx.beginPath();
+                ctx.arc(0, 0, e.width * 0.6, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(45, 212, 191, ${0.2 + Math.sin(Date.now() / 200) * 0.1})`;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = `rgba(45, 212, 191, ${0.4 + Math.sin(Date.now() / 200) * 0.2})`;
+                ctx.stroke();
+                ctx.restore();
+
+                // Dash trail effect
+                if (e.isMoving) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.3;
+                    const trailX = e.direction === 'LEFT' ? 12 : (e.direction === 'RIGHT' ? -12 : 0);
+                    const trailY = e.direction === 'UP' ? 12 : (e.direction === 'DOWN' ? -12 : 0);
+                    
+                    ctx.translate(e.x + trailX, e.y + trailY + bobOffset);
+                    ctx.rotate(tilt);
+                    if (e.direction === 'LEFT') ctx.scale(-1, 1);
+                    ctx.drawImage(img, -e.width/2, -e.height/2, e.width, e.height);
+                    
+                    ctx.globalAlpha = 0.15;
+                    ctx.translate(trailX, trailY);
+                    ctx.drawImage(img, -e.width/2, -e.height/2, e.width, e.height);
+                    ctx.restore();
+                }
+                
+                // Draw main character
+                ctx.translate(e.x, e.y + bobOffset);
+                ctx.rotate(tilt);
+                
+                if (e.direction === 'LEFT') {
+                    ctx.scale(-1, 1);
+                }
+                
+                ctx.drawImage(img, -e.width/2, -e.height/2, e.width, e.height);
+                
+                ctx.restore();
+                return;
+            }
+
             let key = 'HERO_IDLE';
             if (e.isMoving) {
                 if (e.direction === 'UP') key = 'HERO_UP';

@@ -8,7 +8,7 @@ interface GameQuizModalProps {
   onResult: (correct: boolean) => void;
 }
 
-type QuizMode = 'WORD_FROM_DEF' | 'WORD_FROM_AUDIO' | 'DEF_FROM_WORD';
+type QuizMode = 'WORD_FROM_DEF' | 'WORD_FROM_AUDIO' | 'DEF_FROM_WORD' | 'CLOZE_SENTENCE' | 'MISSING_LETTERS';
 
 export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, onResult }) => {
   const [mode, setMode] = useState<QuizMode>('WORD_FROM_DEF');
@@ -44,14 +44,27 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
 
   // Setup
   useEffect(() => {
-    const modes: QuizMode[] = ['WORD_FROM_DEF', 'WORD_FROM_AUDIO', 'DEF_FROM_WORD'];
+    const modes: QuizMode[] = ['WORD_FROM_DEF', 'WORD_FROM_AUDIO', 'DEF_FROM_WORD', 'MISSING_LETTERS'];
+    if (word.exampleSentence && word.exampleSentence.trim().length > 0) {
+        modes.push('CLOZE_SENTENCE');
+    }
     const selectedMode = modes[Math.floor(Math.random() * modes.length)];
     setMode(selectedMode);
 
+    // Harder distractors: prioritize same part of speech, same starting letter, similar length
     const distractors = allWords
       .filter(w => w.id !== word.id)
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 3);
+      .map(w => {
+          let score = Math.random() * 2; // Base randomness
+          if (w.partOfSpeech === word.partOfSpeech) score += 5;
+          if (w.word[0].toLowerCase() === word.word[0].toLowerCase()) score += 3;
+          if (Math.abs(w.word.length - word.word.length) <= 2) score += 2;
+          return { word: w, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(item => item.word);
+      
     const options = [word, ...distractors].sort(() => 0.5 - Math.random());
     setChoices(options);
 
@@ -220,6 +233,26 @@ export const GameQuizModal: React.FC<GameQuizModalProps> = ({ word, allWords, on
              <>
                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold mb-4">看词选义</span>
                <h1 className="text-5xl font-black text-slate-800 mb-4">{word.word}</h1>
+             </>
+          )}
+
+          {mode === 'CLOZE_SENTENCE' && (
+             <>
+               <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold mb-4">句子填空</span>
+               <p className="text-2xl font-bold text-slate-800 text-center">
+                   {word.exampleSentence.replace(new RegExp(word.word, 'gi'), '___')}
+               </p>
+               <p className="text-sm text-slate-500 mt-2">({word.definition})</p>
+             </>
+          )}
+
+          {mode === 'MISSING_LETTERS' && (
+             <>
+               <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold mb-4">残缺拼写</span>
+               <h1 className="text-5xl font-black text-slate-800 mb-4 tracking-[0.2em]">
+                   {word.word.split('').map((char, i) => (i % 2 === 1 ? '_' : char)).join('')}
+               </h1>
+               <p className="text-lg text-slate-600 font-bold">{word.definition}</p>
              </>
           )}
         </div>

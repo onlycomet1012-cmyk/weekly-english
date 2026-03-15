@@ -1,6 +1,8 @@
 
 export enum AppState {
+  GENERATING_ASSETS = 'GENERATING_ASSETS',
   INPUT = 'INPUT',
+  LEVEL_SELECT = 'LEVEL_SELECT',
   GAME = 'GAME'
 }
 
