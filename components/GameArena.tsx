@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { Volume2, VolumeX } from 'lucide-react';
 import { WordData, Entity, PlayerStats, UpgradeOption } from '../types';
 import { loadBasicAssets, generateProceduralSpriteSheet, getRandomSprite } from '../services/gameAssetService';
 import { GameQuizModal } from './GameQuizModal';
@@ -18,7 +19,9 @@ import {
   playIceShootSound,
   playLightningShootSound,
   playWindShootSound,
-  setBgmTheme
+  setBgmTheme,
+  toggleMute,
+  getIsMuted
 } from '../services/audioService';
 
 interface GameArenaProps {
@@ -69,6 +72,10 @@ interface Particle {
     size: number; color: string;
 }
 
+interface FloatingText {
+    x: number; y: number; text: string; color: string; life: number; maxLife: number; vx: number; vy: number; size: number;
+}
+
 export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -99,6 +106,7 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
   const lightningChainsRef = useRef<LightningChain[]>([]);
   const stormEffectsRef = useRef<StormEffect[]>([]);
   const particlesRef = useRef<Particle[]>([]);
+  const floatingTextsRef = useRef<FloatingText[]>([]);
 
   // AUDIO THROTTLING REFS (Time based)
   const lastSoundTimeRef = useRef<{ [key: string]: number }>({
@@ -151,6 +159,7 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
   const [showUpgrades, setShowUpgrades] = useState<UpgradeOption[] | null>(null);
   const [gameTimeDisplay, setGameTimeDisplay] = useState(0);
   const [upgradeFocusedIndex, setUpgradeFocusedIndex] = useState(1); 
+  const [isMuted, setIsMuted] = useState(getIsMuted());
   
   // Sync Refs
   useEffect(() => { quizWordRef.current = quizWord; }, [quizWord]);
@@ -369,6 +378,12 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
     
     // Minor shake on damage
     if (screenShakeRef.current < 5) screenShakeRef.current = 5;
+
+    floatingTextsRef.current.push({
+        x: playerRef.current.x, y: playerRef.current.y - 30,
+        text: `-${amount}`, color: '#ef4444', life: 45, maxLife: 45,
+        vx: (Math.random() - 0.5) * 2, vy: -2 - Math.random(), size: 28
+    });
 
     setUiStats({...statsRef.current});
 
@@ -785,6 +800,19 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
         }
     }
 
+    // --- FLOATING TEXT LOGIC (Update) ---
+    for (let i = floatingTextsRef.current.length - 1; i >= 0; i--) {
+        const ft = floatingTextsRef.current[i];
+        ft.x += ft.vx;
+        ft.y += ft.vy;
+        ft.life--;
+        if (ft.life <= 0) {
+            const last = floatingTextsRef.current[floatingTextsRef.current.length - 1];
+            floatingTextsRef.current[i] = last;
+            floatingTextsRef.current.pop();
+        }
+    }
+
     if (bossDeathTimerRef.current > 0) {
         bossDeathTimerRef.current--;
         if (bossDeathTimerRef.current <= 0) {
@@ -898,6 +926,13 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
       } else { 
           playThrottled('NORMAL', playHitSound);
       }
+
+      floatingTextsRef.current.push({
+          x: enemy.x, y: enemy.y - 20,
+          text: `${p.damage}`, color: p.element === 'FIRE' ? '#fb923c' : (p.element === 'ICE' ? '#bae6fd' : (p.element === 'LIGHTNING' ? '#fde047' : '#ffffff')), 
+          life: 30, maxLife: 30,
+          vx: (Math.random() - 0.5) * 2, vy: -1 - Math.random() * 2, size: 20
+      });
   };
 
   const handleEnemyDeath = (e: Entity) => {
@@ -964,6 +999,11 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
       playHealSound();
       statsRef.current.hp = Math.min(statsRef.current.maxHp, statsRef.current.hp + amount);
       setUiStats({...statsRef.current}); 
+      floatingTextsRef.current.push({
+          x: playerRef.current.x, y: playerRef.current.y - 30,
+          text: `+${amount}`, color: '#4ade80', life: 45, maxLife: 45,
+          vx: (Math.random() - 0.5) * 2, vy: -2 - Math.random(), size: 24
+      });
   };
 
   const spawnEnemies = () => {
@@ -1002,13 +1042,29 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
           else { x = -100; y = Math.random() * GAME_HEIGHT; }
       }
       
+      const level = statsRef.current.level;
+      
+      // HP Scaling Formulas
+      const mobHp = 2 + Math.floor(level * 1.5);
+      const eliteHp = 40 + Math.floor(level * 15);
+      const bossHp = 1000 + Math.floor(level * 500);
+      
+      const hp = category === 'BOSS' ? bossHp : (category === 'ELITE' ? eliteHp : mobHp);
+      
+      // Damage Scaling Formulas
+      const mobDmg = 1 + Math.floor(level / 3);
+      const eliteDmg = 5 + Math.floor(level / 2);
+      const bossDmg = 10 + level;
+      
+      const damage = category === 'BOSS' ? bossDmg : (category === 'ELITE' ? eliteDmg : mobDmg);
+
       const fallback: Entity = {
           id: Math.random().toString(), x, y, vx: 0, vy: 0, 
           type: category as any, width: category === 'BOSS' ? 250 : (category === 'ELITE' ? 90 : 50),
           height: category === 'BOSS' ? 250 : (category === 'ELITE' ? 90 : 50),
-          hp: category === 'BOSS' ? 1000 : (category === 'ELITE' ? 40 : 2),
-          maxHp: category === 'BOSS' ? 1000 : (category === 'ELITE' ? 40 : 2),
-          damage: category === 'BOSS' ? 10 : (category === 'ELITE' ? 5 : 1),
+          hp: hp,
+          maxHp: hp,
+          damage: damage,
           spriteSource: getRandomSprite(category)
       };
 
@@ -1048,7 +1104,7 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
         const a = Math.random() * Math.PI * 2;
         
         const fallback: Entity = {
-            id: Math.random().toString(), x: p.x, y: p.y, width: 24, height: 24, type: 'PROJECTILE',
+            id: Math.random().toString(), x: p.x, y: p.y, width: 32, height: 32, type: 'PROJECTILE',
             vx: Math.cos(a) * s.projectileSpeed, vy: Math.sin(a) * s.projectileSpeed,
             hp: 1, maxHp: 1, damage: s.damage, element: el
         };
@@ -1058,6 +1114,8 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
         bullet.vy = Math.sin(a) * s.projectileSpeed;
         bullet.element = el;
         bullet.damage = s.damage;
+        bullet.width = 32;
+        bullet.height = 32;
 
         projectilesRef.current.push(bullet);
     }
@@ -1068,11 +1126,23 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
       statsRef.current.level++; 
       statsRef.current.damage += 1; 
       statsRef.current.xp = 0; 
-      // Reduced scaling from 1.4 to 1.2 for much easier leveling curve
-      statsRef.current.xpToNextLevel = Math.ceil(statsRef.current.xpToNextLevel * 1.2); 
+      // Reduced scaling from 1.2 to 1.05 for much easier leveling curve to test all words
+      statsRef.current.xpToNextLevel = Math.ceil(statsRef.current.xpToNextLevel * 1.05); 
       if (statsRef.current.activeElement !== 'NONE') {
          setBgmTheme(statsRef.current.activeElement);
       }
+      
+      floatingTextsRef.current.push({
+          x: playerRef.current.x, y: playerRef.current.y - 50,
+          text: `LEVEL UP!`, color: '#facc15', life: 90, maxLife: 90,
+          vx: 0, vy: -1, size: 36
+      });
+      floatingTextsRef.current.push({
+          x: playerRef.current.x, y: playerRef.current.y - 80,
+          text: o.name, color: '#60a5fa', life: 90, maxLife: 90,
+          vx: 0, vy: -1.5, size: 24
+      });
+
       setShowUpgrades(null); 
       // Sync Ref immediately
       showUpgradesRef.current = null;
@@ -1218,11 +1288,97 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
             }
         }
         if (e.spriteSource && spriteSheetRef.current?.complete) {
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(spriteSheetRef.current, e.spriteSource.x, e.spriteSource.y, e.spriteSource.w, e.spriteSource.h, drawX, drawY, e.width, e.height);
+            ctx.save();
+            ctx.imageSmoothingEnabled = true;
+            
+            // Add a simple bobbing and tilt animation based on movement
+            const t = frameCountRef.current * 0.1;
+            let tilt = 0;
+            if (e.vx !== 0 || e.vy !== 0) {
+                tilt = (e.vx > 0 ? 1 : -1) * Math.sin(t) * 0.1;
+            }
+            const bobOffset = Math.sin(t + e.x * 0.05) * 4;
+
+            ctx.translate(e.x, e.y + bobOffset);
+            ctx.rotate(tilt);
+            
+            // Flip sprite if moving left
+            if (e.vx < 0) {
+                ctx.scale(-1, 1);
+            }
+
+            ctx.drawImage(
+                spriteSheetRef.current, 
+                e.spriteSource.x, e.spriteSource.y, e.spriteSource.w, e.spriteSource.h, 
+                -e.width/2, -e.height/2, e.width, e.height
+            );
+
+            // --- STATUS EFFECTS ---
+            if (e.freezeTimer && e.freezeTimer > 0) {
+                // Frosty aura
+                ctx.fillStyle = 'rgba(150, 220, 255, 0.3)';
+                ctx.beginPath();
+                ctx.arc(0, 0, e.width * 0.7, 0, Math.PI*2);
+                ctx.fill();
+                
+                // Ice crystals at the base
+                ctx.fillStyle = 'rgba(200, 240, 255, 0.7)';
+                ctx.beginPath();
+                ctx.moveTo(-e.width/2, e.height/2);
+                ctx.lineTo(-e.width/3, e.height/4);
+                ctx.lineTo(-e.width/6, e.height/2);
+                ctx.lineTo(0, e.height/6);
+                ctx.lineTo(e.width/6, e.height/2);
+                ctx.lineTo(e.width/3, e.height/3);
+                ctx.lineTo(e.width/2, e.height/2);
+                ctx.closePath();
+                ctx.fill();
+
+                // Status Icon
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('❄️', 0, -e.height/2 - 8);
+            }
+
+            if (e.burnTimer && e.burnTimer > 0) {
+                ctx.globalCompositeOperation = 'lighter';
+                const fireT = t * 3 + e.x;
+                
+                // Flickering heat aura
+                const flicker = 0.6 + Math.sin(fireT * 2) * 0.2;
+                ctx.fillStyle = `rgba(255, 80, 0, ${flicker * 0.5})`;
+                ctx.beginPath();
+                ctx.arc(0, 0, e.width * 0.7, 0, Math.PI*2);
+                ctx.fill();
+                
+                // Rising embers
+                ctx.fillStyle = 'rgba(255, 200, 50, 0.8)';
+                ctx.fillRect(-e.width/3, e.height/2 - (fireT % 20), 2, 2);
+                ctx.fillRect(e.width/4, e.height/2 - ((fireT + 10) % 25), 2, 2);
+                ctx.fillRect(0, e.height/2 - ((fireT + 5) % 15), 3, 3);
+                
+                ctx.globalCompositeOperation = 'source-over';
+
+                // Status Icon
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                const yOff = Math.sin(fireT * 2) * 2;
+                ctx.fillText('🔥', 0, -e.height/2 - 8 + yOff);
+            }
+
+            ctx.restore();
         } else {
             ctx.fillStyle = e.type === 'HERO' ? '#6366f1' : '#ef4444';
             ctx.fillRect(drawX, drawY, e.width, e.height);
+            
+            if (e.freezeTimer && e.freezeTimer > 0) {
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.5)';
+                ctx.fillRect(drawX - 4, drawY - 4, e.width + 8, e.height + 8);
+            }
+            if (e.burnTimer && e.burnTimer > 0) {
+                ctx.fillStyle = 'rgba(255, 100, 0, 0.5)';
+                ctx.fillRect(drawX, drawY + e.height/2, e.width, e.height/2);
+            }
         }
     };
     
@@ -1238,17 +1394,17 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
             const img = spritesRef.current['SNACK'];
             if (img && img.complete) {
                 ctx.imageSmoothingEnabled = true;
-                ctx.drawImage(img, gx - 12, gy - 12, 24, 24);
+                ctx.drawImage(img, gx - 16, gy - 16, 32, 32);
             } else {
-                ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(gx, gy, 8, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(gx, gy, 12, 0, Math.PI*2); ctx.fill();
             }
         } else {
             const img = spritesRef.current['XP'];
             if (img && img.complete) {
                 ctx.imageSmoothingEnabled = true;
-                ctx.drawImage(img, gx - 10, gy - 10, 20, 20);
+                ctx.drawImage(img, gx - 12, gy - 12, 24, 24);
             } else {
-                ctx.fillStyle = '#60a5fa'; ctx.beginPath(); ctx.arc(gx, gy, 8, 0, Math.PI*2); ctx.fill(); 
+                ctx.fillStyle = '#60a5fa'; ctx.beginPath(); ctx.arc(gx, gy, 10, 0, Math.PI*2); ctx.fill(); 
             }
         }
     });
@@ -1261,17 +1417,34 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
         ctx.save();
         ctx.translate(s.x | 0, s.y | 0);
         const opacity = s.life / s.maxLife;
+        
+        // Scale up slightly as it dissipates
+        const scale = 0.5 + 0.5 * (1 - opacity);
+        ctx.scale(scale, scale);
         ctx.rotate(s.angle);
         
-        ctx.strokeStyle = `rgba(200, 240, 255, ${opacity * 0.4})`;
-        ctx.lineWidth = 4;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
         
-        ctx.beginPath(); ctx.arc(0, 0, s.radius * 0.3, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.arc(0, 0, s.radius * 0.7, 0, Math.PI * 1.5); ctx.stroke();
-        ctx.beginPath(); ctx.arc(0, 0, s.radius, 1, Math.PI * 1.8); ctx.stroke();
+        // Outer swirling wind
+        ctx.lineWidth = 6 * opacity;
+        ctx.strokeStyle = `rgba(150, 220, 255, ${opacity * 0.6})`;
+        ctx.beginPath(); ctx.arc(0, 0, s.radius * 0.8, 0, Math.PI * 1.2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, s.radius * 0.8, Math.PI, Math.PI * 2.2); ctx.stroke();
 
-        ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.2})`;
-        ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
+        // Inner intense swirl
+        ctx.lineWidth = 10 * opacity;
+        ctx.strokeStyle = `rgba(200, 240, 255, ${opacity * 0.8})`;
+        ctx.beginPath(); ctx.arc(0, 0, s.radius * 0.4, 0.5, Math.PI * 1.5); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, s.radius * 0.4, Math.PI + 0.5, Math.PI * 2.5); ctx.stroke();
+
+        // Core glowing vortex
+        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, s.radius * 0.5);
+        grad.addColorStop(0, `rgba(255, 255, 255, ${opacity * 0.9})`);
+        grad.addColorStop(0.5, `rgba(150, 220, 255, ${opacity * 0.4})`);
+        grad.addColorStop(1, `rgba(150, 220, 255, 0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(0, 0, s.radius * 0.5, 0, Math.PI * 2); ctx.fill();
 
         ctx.restore();
     }
@@ -1367,6 +1540,23 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
     ctx.globalCompositeOperation = 'source-over'; // RESET BLEND MODE
     ctx.globalAlpha = 1.0;
     
+    // --- FLOATING TEXT DRAWING ---
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    floatingTextsRef.current.forEach(ft => {
+        if (ft.life <= 0) return;
+        ctx.globalAlpha = Math.max(0, ft.life / ft.maxLife);
+        ctx.font = `900 ${ft.size}px "Inter", sans-serif`;
+        ctx.fillStyle = ft.color;
+        
+        // Stroke for readability
+        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+        ctx.lineWidth = 3;
+        ctx.strokeText(ft.text, ft.x | 0, ft.y | 0);
+        ctx.fillText(ft.text, ft.x | 0, ft.y | 0);
+    });
+    ctx.globalAlpha = 1.0;
+
     // === WHITE FLASH ===
     if (whiteFlashRef.current > 0) {
         ctx.fillStyle = `rgba(255, 255, 255, ${whiteFlashRef.current})`;
@@ -1381,27 +1571,27 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
     const secs = (gameTimeDisplay % 60).toString().padStart(2, '0');
 
     return (
-        <div className="w-full bg-slate-50 rounded-xl p-6 mb-6 text-slate-700 font-bold space-y-3">
-            <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2">
-                <span className="text-slate-500 text-xs uppercase tracking-wider">Time Survived</span>
-                <span className="text-xl font-mono">{mins}:{secs}</span>
+        <div className="w-full bg-slate-800/50 rounded-2xl p-6 mb-6 text-slate-300 font-medium space-y-4 border border-slate-700/50 backdrop-blur-sm">
+            <div className="flex justify-between items-center border-b border-slate-700/50 pb-3">
+                <span className="text-slate-400 text-xs uppercase tracking-widest font-bold">Time Survived</span>
+                <span className="text-2xl font-black text-white font-mono">{mins}:{secs}</span>
             </div>
-            <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2">
-                <span className="text-slate-500 text-xs uppercase tracking-wider">Level Reached</span>
-                <span className="text-xl font-mono">{uiStats.level}</span>
+            <div className="flex justify-between items-center border-b border-slate-700/50 pb-3">
+                <span className="text-slate-400 text-xs uppercase tracking-widest font-bold">Level Reached</span>
+                <span className="text-2xl font-black text-blue-400 font-mono">{uiStats.level}</span>
             </div>
-            <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2">
-                <span className="text-slate-500 text-xs uppercase tracking-wider">Enemies Defeated</span>
-                <span className="text-xl font-mono">{killCountsRef.current.mobs}</span>
+            <div className="flex justify-between items-center border-b border-slate-700/50 pb-3">
+                <span className="text-slate-400 text-xs uppercase tracking-widest font-bold">Enemies Defeated</span>
+                <span className="text-2xl font-black text-red-400 font-mono">{killCountsRef.current.mobs}</span>
             </div>
-             <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2">
-                <span className="text-slate-500 text-xs uppercase tracking-wider">Elites Defeated</span>
-                <span className="text-xl font-mono">{killCountsRef.current.elites}</span>
+             <div className="flex justify-between items-center border-b border-slate-700/50 pb-3">
+                <span className="text-slate-400 text-xs uppercase tracking-widest font-bold">Elites Defeated</span>
+                <span className="text-2xl font-black text-purple-400 font-mono">{killCountsRef.current.elites}</span>
             </div>
             {killCountsRef.current.bosses > 0 && (
-                <div className="flex justify-between items-center pt-2 text-yellow-600">
-                     <span className="text-xs uppercase tracking-wider font-black">BOSS SLAIN</span>
-                     <span className="text-xl">👑</span>
+                <div className="flex justify-between items-center pt-2">
+                     <span className="text-yellow-500 text-xs uppercase tracking-widest font-black animate-pulse">BOSS SLAIN</span>
+                     <span className="text-3xl drop-shadow-[0_0_10px_rgba(234,179,8,0.8)]">👑</span>
                 </div>
             )}
         </div>
@@ -1417,43 +1607,76 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
           />
 
           {/* HUD (Top Left) */}
-          <div className="absolute top-8 left-8 flex flex-col gap-2 pointer-events-none">
-            <div className="w-96 h-10 bg-slate-800 rounded-full border-4 border-slate-600 overflow-hidden relative shadow-lg">
-                 <div className="h-full bg-red-600 transition-all duration-300" style={{ width: `${(uiStats.hp / uiStats.maxHp) * 100}%` }}></div>
-                 <span className="absolute inset-0 flex items-center justify-center text-lg font-black text-white drop-shadow-md">HP {Math.ceil(uiStats.hp)}</span>
+          <div className="absolute top-6 left-6 flex flex-col gap-3 pointer-events-none z-10">
+            {/* HP Bar */}
+            <div className="w-80 h-8 bg-slate-900/80 backdrop-blur-md rounded-full border-2 border-slate-700/50 overflow-hidden relative shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                 <div className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-300 ease-out" style={{ width: `${Math.max(0, (uiStats.hp / uiStats.maxHp) * 100)}%` }}></div>
+                 <div className="absolute inset-0 flex items-center justify-between px-4 text-sm font-black text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-wider">
+                     <span>HP</span>
+                     <span>{Math.ceil(uiStats.hp)} / {uiStats.maxHp}</span>
+                 </div>
             </div>
-            <div className="w-96 h-6 bg-slate-800 rounded-full border-2 border-slate-600 overflow-hidden relative shadow-md">
-                 <div className="h-full bg-blue-600" style={{ width: `${(uiStats.xp / uiStats.xpToNextLevel) * 100}%` }}></div>
-                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">LVL {uiStats.level}</span>
+            {/* XP Bar */}
+            <div className="w-80 h-5 bg-slate-900/80 backdrop-blur-md rounded-full border-2 border-slate-700/50 overflow-hidden relative shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                 <div className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all duration-300 ease-out" style={{ width: `${Math.min(100, (uiStats.xp / uiStats.xpToNextLevel) * 100)}%` }}></div>
+                 <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)] tracking-widest">
+                     LVL {uiStats.level}
+                 </div>
             </div>
-            <div className="flex gap-2">
-                <div className="bg-slate-800/80 px-3 py-1 rounded-lg border border-slate-600 text-white text-xs font-bold">⚔️ {uiStats.damage}</div>
-                <div className="bg-slate-800/80 px-3 py-1 rounded-lg border border-slate-600 text-white text-xs font-bold">✨ {uiStats.projectileCount}</div>
+            {/* Stats */}
+            <div className="flex gap-2 mt-1">
+                <div className="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/50 text-white text-xs font-bold shadow-lg flex items-center gap-1.5">
+                    <span className="text-red-400">⚔️</span> {uiStats.damage}
+                </div>
+                <div className="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/50 text-white text-xs font-bold shadow-lg flex items-center gap-1.5">
+                    <span className="text-yellow-400">✨</span> {uiStats.projectileCount}
+                </div>
+                <div className="bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/50 text-white text-xs font-bold shadow-lg flex items-center gap-1.5">
+                    <span className="text-green-400">👟</span> {uiStats.speed.toFixed(1)}
+                </div>
             </div>
           </div>
 
-          <div className="absolute top-8 right-8 text-xl font-mono text-white pointer-events-none">
-            {Math.floor(gameTimeDisplay / 60)}:{(gameTimeDisplay % 60).toString().padStart(2, '0')}
+          <div className="absolute top-6 right-6 flex items-center gap-4 z-10 pointer-events-auto">
+            <button 
+                onClick={() => setIsMuted(toggleMute())}
+                className="bg-slate-900/80 backdrop-blur-md p-3 rounded-2xl border-2 border-slate-700/50 text-slate-300 hover:text-white hover:border-slate-500 hover:bg-slate-800 transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)] active:scale-95"
+                title={isMuted ? "Unmute Sound" : "Mute Sound"}
+            >
+                {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+            </button>
+            <div className="bg-slate-900/80 backdrop-blur-md px-6 py-2 rounded-2xl border-2 border-slate-700/50 shadow-[0_0_15px_rgba(0,0,0,0.5)] text-2xl font-black font-mono text-white pointer-events-none tracking-widest">
+              {Math.floor(gameTimeDisplay / 60).toString().padStart(2, '0')}:{(gameTimeDisplay % 60).toString().padStart(2, '0')}
+            </div>
           </div>
       </div>
 
       {quizWord && <GameQuizModal word={quizWord} allWords={words} onResult={handleQuizResult} />}
       {showUpgrades && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-              <div className="w-full max-w-4xl text-center">
-                  <h2 className="text-3xl sm:text-5xl font-black text-yellow-400 mb-8">LEVEL UP!</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+              <div className="w-full max-w-5xl text-center">
+                  <div className="inline-block relative mb-12">
+                      <h2 className="text-5xl sm:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-[0_0_30px_rgba(250,204,21,0.6)] tracking-tighter uppercase transform -skew-x-6">
+                          LEVEL UP!
+                      </h2>
+                      <div className="absolute -inset-4 bg-yellow-400/20 blur-2xl -z-10 rounded-full"></div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                       {showUpgrades.map((o, index) => (
                           <button 
                               key={o.id} 
                               onClick={() => applyUpgrade(o)}
-                              className={`p-6 bg-slate-800 border-4 rounded-2xl flex flex-col items-center gap-2 transition-transform duration-100 hover:scale-105 active:scale-95
-                                ${index === upgradeFocusedIndex ? 'border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'border-slate-600 opacity-80'}
+                              className={`group relative p-8 bg-slate-900/90 backdrop-blur-sm border-4 rounded-3xl flex flex-col items-center gap-4 transition-all duration-200 hover:-translate-y-2 active:translate-y-1 overflow-hidden
+                                ${index === upgradeFocusedIndex ? 'border-yellow-400 shadow-[0_0_40px_rgba(250,204,21,0.4)] scale-105' : 'border-slate-700 hover:border-slate-500 shadow-xl'}
                               `}
                           >
-                              <span className="text-4xl">{o.icon}</span>
-                              <span className="font-bold text-white">{o.name}</span>
-                              <span className="text-xs text-slate-400">{o.description}</span>
+                              {/* Background Glow */}
+                              <div className={`absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity ${index === upgradeFocusedIndex ? 'opacity-100' : ''}`}></div>
+                              
+                              <div className="text-6xl drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] transform group-hover:scale-110 transition-transform">{o.icon}</div>
+                              <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-500 to-transparent my-2"></div>
+                              <span className="font-black text-2xl text-white tracking-wide">{o.name}</span>
+                              <span className="text-sm text-slate-400 font-medium leading-relaxed">{o.description}</span>
                           </button>
                       ))}
                   </div>
@@ -1462,20 +1685,26 @@ export const GameArena: React.FC<GameArenaProps> = ({ words, onExit, aiSpriteUrl
       )}
 
       {gameResult !== 'PLAYING' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-              <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center flex flex-col items-center">
-                  <h1 className={`text-4xl font-black mb-6 ${gameResult === 'VICTORY' ? 'text-yellow-600' : 'text-red-600'}`}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-500">
+              <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-10 max-w-md w-full text-center flex flex-col items-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+                  {/* Decorative background glow */}
+                  <div className={`absolute -top-20 -left-20 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none ${gameResult === 'VICTORY' ? 'bg-yellow-500' : 'bg-red-600'}`}></div>
+                  <div className={`absolute -bottom-20 -right-20 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none ${gameResult === 'VICTORY' ? 'bg-yellow-500' : 'bg-red-600'}`}></div>
+
+                  <h1 className={`text-5xl font-black mb-8 tracking-tighter uppercase drop-shadow-lg relative z-10 ${gameResult === 'VICTORY' ? 'text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600' : 'text-transparent bg-clip-text bg-gradient-to-b from-red-400 to-red-700'}`}>
                       {gameResult === 'VICTORY' ? 'VICTORY!' : 'GAME OVER'}
                   </h1>
                   
-                  {renderStats()}
+                  <div className="w-full relative z-10">
+                      {renderStats()}
+                  </div>
                   
-                  {/* SINGLE ACTION BUTTON */}
                   <button 
                     onClick={onExit} 
-                    className="w-full py-6 font-black text-2xl rounded-2xl mb-3 transition-all border-4 bg-slate-800 text-white scale-105 border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.4)] hover:bg-slate-700 active:scale-95"
+                    className="w-full mt-4 py-5 font-black text-xl rounded-2xl transition-all border-2 bg-slate-800 text-white border-slate-600 hover:bg-slate-700 hover:border-slate-400 active:scale-95 shadow-lg relative z-10 group overflow-hidden"
                   >
-                    RETRY
+                    <span className="relative z-10 tracking-widest uppercase">RETURN TO MENU</span>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
                   </button>
               </div>
           </div>

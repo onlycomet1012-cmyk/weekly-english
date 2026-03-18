@@ -9,6 +9,20 @@ let distortionCurve: Float32Array | null = null;
 
 export type BgmTheme = 'DEFAULT' | 'FIRE' | 'ICE' | 'LIGHTNING' | 'WIND';
 let currentTheme: BgmTheme = 'DEFAULT';
+let isMuted = false;
+
+export const toggleMute = () => {
+    isMuted = !isMuted;
+    if (isMuted) {
+        stopBGM();
+        window.speechSynthesis?.cancel();
+    } else {
+        startBGM();
+    }
+    return isMuted;
+};
+
+export const getIsMuted = () => isMuted;
 
 // UNIFIED ROCK TEMPO (132 BPM - Driving Energy)
 const BPM = 132;
@@ -68,7 +82,7 @@ const getDistortionCurve = (amount: number = 50) => {
 // ==========================================
 
 const playRockKick = (time: number, vol = 1.0) => {
-    if (!audioCtx) return;
+    if (!audioCtx || isMuted) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     
@@ -85,7 +99,7 @@ const playRockKick = (time: number, vol = 1.0) => {
 };
 
 const playRockSnare = (time: number, vol = 0.8) => {
-    if (!audioCtx) return;
+    if (!audioCtx || isMuted) return;
     // 1. Tonal body
     const osc = audioCtx.createOscillator();
     osc.type = 'triangle';
@@ -118,7 +132,7 @@ const playRockSnare = (time: number, vol = 0.8) => {
 };
 
 const playHiHat = (time: number, open = false, vol = 0.3) => {
-    if (!audioCtx) return;
+    if (!audioCtx || isMuted) return;
     const bufferSize = audioCtx.sampleRate * (open ? 0.3 : 0.05);
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -138,7 +152,7 @@ const playHiHat = (time: number, open = false, vol = 0.3) => {
 
 // SIMULATED ELECTRIC GUITAR (Power Chords)
 const playDistortedGuitar = (rootFreq: number, time: number, duration: number, vol = 0.3) => {
-    if (!audioCtx) return;
+    if (!audioCtx || isMuted) return;
     
     const masterGain = audioCtx.createGain();
     masterGain.gain.value = vol;
@@ -402,6 +416,7 @@ const NOTE_D5 = 587.33;
 const NOTE_E5 = 659.25;
 
 export const startBGM = () => {
+    if (isMuted) return;
     resumeAudioContext();
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -430,6 +445,7 @@ export const stopBGM = () => {
 // ==========================================
 
 export const playSuccessSound = () => {
+  if (isMuted) return;
   const ctx = getAudioContext();
   if (!ctx) return;
   const now = ctx.currentTime;
@@ -447,6 +463,7 @@ export const playSuccessSound = () => {
 };
 
 export const playErrorSound = () => {
+  if (isMuted) return;
   const ctx = getAudioContext();
   if (!ctx) return;
   const osc = ctx.createOscillator(); const gain = ctx.createGain();
@@ -461,6 +478,7 @@ export const playErrorSound = () => {
 
 export const playVictorySound = () => {
   stopBGM(); 
+  if (isMuted) return;
   const ctx = getAudioContext();
   if (!ctx) return;
   const now = ctx.currentTime;
@@ -490,6 +508,7 @@ export const playVictorySound = () => {
 };
 
 export const playShootSound = () => {
+  if (isMuted) return;
   const ctx = getAudioContext(); if (!ctx) return;
   const now = ctx.currentTime;
   const osc = ctx.createOscillator(); const gain = ctx.createGain();
@@ -501,6 +520,7 @@ export const playShootSound = () => {
 };
 
 export const playHitSound = () => {
+  if (isMuted) return;
   const ctx = getAudioContext(); if (!ctx) return;
   const t = ctx.currentTime;
   const bufferSize = ctx.sampleRate * 0.1;
@@ -516,6 +536,7 @@ export const playHitSound = () => {
 };
 
 export const playHealSound = () => {
+    if (isMuted) return;
     const ctx = getAudioContext(); if (!ctx) return;
     const t = ctx.currentTime;
     const notes = [523.25, 659.25, 783.99, 1046.50]; 
@@ -532,7 +553,7 @@ export const playHealSound = () => {
 };
 
 export const speakText = (text: string, rate: number = 1.0) => {
-  if (!('speechSynthesis' in window)) return;
+  if (!('speechSynthesis' in window) || isMuted) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'en-US'; utterance.rate = rate; utterance.pitch = 1.15; 
@@ -549,6 +570,7 @@ export const speakText = (text: string, rate: number = 1.0) => {
 // ==========================================
 
 export const playFireHitSound = () => {
+  if (isMuted) return;
   const ctx = getAudioContext(); if (!ctx) return;
   const t = ctx.currentTime;
   const bufferSize = ctx.sampleRate * 0.3;
@@ -564,6 +586,7 @@ export const playFireHitSound = () => {
 };
 
 export const playIceHitSound = () => {
+    if (isMuted) return;
     const ctx = getAudioContext(); if (!ctx) return;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator(); osc.type = 'triangle'; 
@@ -575,6 +598,7 @@ export const playIceHitSound = () => {
 };
 
 export const playLightningHitSound = () => {
+    if (isMuted) return;
     const ctx = getAudioContext(); if (!ctx) return;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator(); osc.type = 'sawtooth';
@@ -587,6 +611,7 @@ export const playLightningHitSound = () => {
 };
 
 export const playWindHitSound = () => {
+    if (isMuted) return;
     const ctx = getAudioContext(); if (!ctx) return;
     const t = ctx.currentTime;
     const bufferSize = ctx.sampleRate * 0.4;
@@ -603,54 +628,107 @@ export const playWindHitSound = () => {
 };
 
 export const playFireShootSound = () => {
+    if (isMuted) return;
     const ctx = getAudioContext(); if (!ctx) return;
     const t = ctx.currentTime;
-    const bufferSize = ctx.sampleRate * 0.15;
+    // Fire: A low, whooshing burst
+    const bufferSize = ctx.sampleRate * 0.25;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    const data = buffer.getChannelData(0); 
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    
     const noise = ctx.createBufferSource(); noise.buffer = buffer;
-    const filter = ctx.createBiquadFilter(); filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(600, t); filter.frequency.linearRampToValueAtTime(200, t + 0.15);
+    
+    const filter = ctx.createBiquadFilter(); 
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(400, t); 
+    filter.frequency.exponentialRampToValueAtTime(50, t + 0.25);
+    
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t + 0.15);
+    gain.gain.setValueAtTime(0.3, t); 
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+    
     noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
     noise.start(t);
 };
 
 export const playIceShootSound = () => {
+    if (isMuted) return;
     const ctx = getAudioContext(); if (!ctx) return;
     const t = ctx.currentTime;
-    const osc = ctx.createOscillator(); osc.type = 'sine';
-    osc.frequency.setValueAtTime(1500, t); osc.frequency.linearRampToValueAtTime(1800, t + 0.05);
+    // Ice: A sharp, high-pitched crystalline tinkle
+    const osc1 = ctx.createOscillator(); osc1.type = 'sine';
+    const osc2 = ctx.createOscillator(); osc2.type = 'triangle';
+    
+    osc1.frequency.setValueAtTime(2000, t); 
+    osc1.frequency.exponentialRampToValueAtTime(3000, t + 0.1);
+    
+    osc2.frequency.setValueAtTime(2500, t);
+    osc2.frequency.exponentialRampToValueAtTime(4000, t + 0.15);
+    
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(t); osc.stop(t + 0.05);
+    gain.gain.setValueAtTime(0.15, t); 
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+    
+    osc1.connect(gain); osc2.connect(gain); gain.connect(ctx.destination);
+    osc1.start(t); osc1.stop(t + 0.15);
+    osc2.start(t); osc2.stop(t + 0.15);
 };
 
 export const playLightningShootSound = () => {
+    if (isMuted) return;
     const ctx = getAudioContext(); if (!ctx) return;
     const t = ctx.currentTime;
+    // Lightning: A sharp, crackling zap
     const osc = ctx.createOscillator(); osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(800, t); osc.frequency.exponentialRampToValueAtTime(200, t + 0.08);
+    osc.frequency.setValueAtTime(2000, t); 
+    osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
+    
+    // Add some noise for the crackle
+    const bufferSize = ctx.sampleRate * 0.1;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0); 
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    const noise = ctx.createBufferSource(); noise.buffer = buffer;
+    
+    const noiseFilter = ctx.createBiquadFilter(); 
+    noiseFilter.type = 'highpass'; 
+    noiseFilter.frequency.value = 3000;
+    
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.05, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
-    const filter = ctx.createBiquadFilter(); filter.type = 'highpass'; filter.frequency.value = 1000;
-    osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
-    osc.start(t); osc.stop(t + 0.08);
+    gain.gain.setValueAtTime(0.2, t); 
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+    
+    osc.connect(gain);
+    noise.connect(noiseFilter); noiseFilter.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.start(t); osc.stop(t + 0.1);
+    noise.start(t);
 };
 
 export const playWindShootSound = () => {
+    if (isMuted) return;
     const ctx = getAudioContext(); if (!ctx) return;
     const t = ctx.currentTime;
-    const bufferSize = ctx.sampleRate * 0.1;
+    // Wind: A quick, airy swoosh
+    const bufferSize = ctx.sampleRate * 0.2;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    const data = buffer.getChannelData(0); 
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    
     const noise = ctx.createBufferSource(); noise.buffer = buffer;
-    const filter = ctx.createBiquadFilter(); filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(800, t); filter.Q.value = 1;
+    
+    const filter = ctx.createBiquadFilter(); 
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(600, t); 
+    filter.frequency.exponentialRampToValueAtTime(1200, t + 0.2);
+    filter.Q.value = 1.5;
+    
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t + 0.1);
+    gain.gain.setValueAtTime(0.2, t); 
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+    
     noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
     noise.start(t);
 };

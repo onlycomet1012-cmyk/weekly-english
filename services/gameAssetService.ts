@@ -126,33 +126,55 @@ const HERO_SVG_RIGHT = createHeroSvg('SIDE_RIGHT');
 
 // --- SAPPHIRE XP GEM ---
 const XP_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="gemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#1e3a8a;stop-opacity:1" />
+    <radialGradient id="gemGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#93c5fd" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#1e3a8a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gemCore" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#bfdbfe"/>
+      <stop offset="50%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
     </linearGradient>
   </defs>
-  <!-- Shadow -->
-  <ellipse cx="12" cy="22" rx="6" ry="2" fill="rgba(0,0,0,0.3)" />
-  <!-- Gem Shape (Octagon-ish) -->
-  <path d="M8 2 L16 2 L22 8 L22 16 L16 22 L8 22 L2 16 L2 8 Z" fill="url(#gemGrad)" stroke="#93c5fd" stroke-width="1" />
-  <!-- Inner Facet -->
-  <path d="M8 8 L16 8 L16 16 L8 16 Z" fill="rgba(255,255,255,0.2)" />
-  <!-- Shine -->
-  <path d="M8 2 L4 6" stroke="white" stroke-width="2" opacity="0.6" />
+  <circle cx="32" cy="32" r="28" fill="url(#gemGlow)" />
+  <path d="M 32 8 L 48 24 L 32 56 L 16 24 Z" fill="url(#gemCore)" stroke="#eff6ff" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M 32 8 L 48 24 L 32 36 Z" fill="#93c5fd" opacity="0.6"/>
+  <path d="M 32 8 L 16 24 L 32 36 Z" fill="#eff6ff" opacity="0.8"/>
+  <polygon points="28,16 36,16 32,24" fill="#ffffff" opacity="0.9"/>
 </svg>
 `.trim())}`;
 
 // --- SNACK (Burger) ---
 const SNACK_SVG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-  <rect x="4" y="20" width="24" height="6" rx="2" fill="#d97706"/>
-  <rect x="2" y="14" width="28" height="6" rx="2" fill="#78350f"/>
-  <path d="M4 14 Q16 2 28 14" fill="#fbbf24"/>
-  <circle cx="10" cy="8" r="1" fill="#fde68a"/>
-  <circle cx="16" cy="6" r="1" fill="#fde68a"/>
-  <circle cx="22" cy="8" r="1" fill="#fde68a"/>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="burgerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fcd34d" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#b45309" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#burgerGlow)" />
+  <!-- Bottom Bun -->
+  <path d="M 12 44 Q 32 52 52 44 L 50 48 Q 32 56 14 48 Z" fill="#b45309" />
+  <path d="M 12 40 Q 32 48 52 40 L 52 44 Q 32 52 12 44 Z" fill="#f59e0b" />
+  <!-- Meat -->
+  <rect x="10" y="32" width="44" height="8" rx="4" fill="#451a03" />
+  <rect x="10" y="34" width="44" height="4" rx="2" fill="#78350f" />
+  <!-- Cheese -->
+  <path d="M 12 32 L 20 38 L 28 32 L 36 38 L 44 32 L 52 36 L 52 30 L 12 30 Z" fill="#fbbf24" />
+  <!-- Lettuce -->
+  <path d="M 8 28 Q 16 22 24 28 T 40 28 T 56 28 L 54 32 Q 40 26 24 32 T 10 32 Z" fill="#4ade80" />
+  <!-- Top Bun -->
+  <path d="M 10 26 Q 32 4 54 26 Q 32 32 10 26 Z" fill="#f59e0b" />
+  <path d="M 14 24 Q 32 10 50 24 Q 32 28 14 24 Z" fill="#fbbf24" />
+  <!-- Seeds -->
+  <ellipse cx="24" cy="18" rx="2" ry="1" fill="#fef3c7" transform="rotate(-20 24 18)" />
+  <ellipse cx="32" cy="14" rx="2" ry="1" fill="#fef3c7" />
+  <ellipse cx="40" cy="18" rx="2" ry="1" fill="#fef3c7" transform="rotate(20 40 18)" />
+  <ellipse cx="20" cy="24" rx="2" ry="1" fill="#fef3c7" transform="rotate(-40 20 24)" />
+  <ellipse cx="44" cy="24" rx="2" ry="1" fill="#fef3c7" transform="rotate(40 44 24)" />
 </svg>
 `.trim())}`;
 
@@ -289,175 +311,227 @@ export const loadAdvancedAssets = (onAssetLoaded: (key: string, url: string) => 
 // SPRITE SHEET LOGIC (PROCEDURAL GENERATION)
 // ==========================================
 
-const TILE_SIZE = 16; 
+const TILE_SIZE = 64; 
 
 // Format: { row: number, cols: number[] }
 const MOB_ROWS = [
-    { row: 0, cols: [0, 1, 2, 3] }, // Green Goblins (Basic)
-    { row: 2, cols: [0, 1] }, // Blue Slimes (Round)
-    { row: 3, cols: [0, 1, 2] }, // Grey Skeletons (Tall)
-    { row: 6, cols: [0, 1, 2, 3] }, // Purple Insects (Winged)
-    { row: 7, cols: [0, 1, 2] }, // Brown Beasts (Wide)
+    { row: 0, cols: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
+    { row: 1, cols: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
+    { row: 2, cols: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
 ];
 
 const ELITE_ROWS = [
-    { row: 1, cols: [0, 1] }, // Red Ogres (Big)
-    { row: 5, cols: [0, 1] }, // Teal Wraiths (Ghostly)
+    { row: 3, cols: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
 ];
 
-const BOSS_ROWS = [
-    { row: 9, cols: [0] }, // Big Slime
-];
-
-// Dynamically generate a pixel art sprite sheet so the user doesn't need to upload one
+// Dynamically generate a high-quality vector-style sprite sheet
 export const generateProceduralSpriteSheet = (): string => {
   const canvas = document.createElement('canvas');
-  const size = 256;
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = 1024;
+  canvas.height = 512; 
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
 
-  type ShapeType = 'BASIC' | 'SLIME' | 'SKELETON' | 'BAT' | 'GHOST' | 'BEAST' | 'OGRE';
+  const drawShape = (x: number, y: number, size: number, shapeIdx: number, color1: string, color2: string, isElite: boolean) => {
+    ctx.save();
+    ctx.translate(x + size/2, y + size/2);
+    
+    if (isElite) ctx.scale(1.2, 1.2);
+    
+    const s = size * 0.35; 
+    
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(0, s * 1.1, s * 0.8, s * 0.2, 0, 0, Math.PI*2); ctx.fill();
 
-  // Helper to draw a pixel mob with different shapes
-  const drawMob = (row: number, col: number, color: string, eyes: string = 'white', shape: ShapeType = 'BASIC') => {
-      const x = col * TILE_SIZE;
-      const y = row * TILE_SIZE;
-      
-      ctx.fillStyle = color;
+    // Gradient
+    const grad = ctx.createRadialGradient(0, -s*0.2, 0, 0, 0, s);
+    grad.addColorStop(0, color1);
+    grad.addColorStop(1, color2);
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = color2;
+    ctx.lineWidth = 2;
 
-      if (shape === 'SLIME') {
-        // Round bottom, smaller top
-        ctx.fillRect(x + 3, y + 4, 10, 10);
-        ctx.fillRect(x + 2, y + 8, 12, 6);
-      } 
-      else if (shape === 'SKELETON') {
-        // Tall and thin, ribbed
-        ctx.fillRect(x + 5, y + 2, 6, 13); // Spine
-        ctx.fillRect(x + 4, y + 4, 8, 2); // Ribs
-        ctx.fillRect(x + 4, y + 7, 8, 2);
-        ctx.fillRect(x + 5, y + 2, 6, 4); // Skull
-      }
-      else if (shape === 'BAT') {
-        // Wings
-        ctx.fillRect(x + 6, y + 5, 4, 8); // Body
-        ctx.fillStyle = color; // Wings same color or darker
-        ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    switch(shapeIdx) {
+      case 0: // Slime
+        ctx.moveTo(0, -s);
+        ctx.bezierCurveTo(s, -s, s*1.2, s*0.8, s, s);
+        ctx.bezierCurveTo(s*0.5, s*1.1, -s*0.5, s*1.1, -s, s);
+        ctx.bezierCurveTo(-s*1.2, s*0.8, -s, -s, 0, -s);
+        break;
+      case 1: // Bat
+        ctx.ellipse(0, 0, s*0.6, s*0.8, 0, 0, Math.PI*2);
+        ctx.fill(); ctx.beginPath();
+        ctx.moveTo(-s*0.5, 0); ctx.quadraticCurveTo(-s*1.5, -s, -s*2, -s*0.5); ctx.quadraticCurveTo(-s*1.5, s, -s*0.5, s*0.5);
+        ctx.moveTo(s*0.5, 0); ctx.quadraticCurveTo(s*1.5, -s, s*2, -s*0.5); ctx.quadraticCurveTo(s*1.5, s, s*0.5, s*0.5);
+        break;
+      case 2: // Ghost
+        ctx.arc(0, -s*0.2, s*0.8, Math.PI, 0);
+        ctx.lineTo(s*0.8, s); ctx.lineTo(s*0.4, s*0.6); ctx.lineTo(0, s); ctx.lineTo(-s*0.4, s*0.6); ctx.lineTo(-s*0.8, s);
+        break;
+      case 3: // Skull
+        ctx.arc(0, -s*0.2, s*0.8, 0, Math.PI*2);
+        ctx.fill(); ctx.beginPath();
+        ctx.rect(-s*0.4, s*0.4, s*0.8, s*0.4);
+        break;
+      case 4: // Beast
+        ctx.ellipse(0, s*0.2, s, s*0.6, 0, 0, Math.PI*2);
+        ctx.fill(); ctx.beginPath();
+        ctx.ellipse(-s*0.6, -s*0.4, s*0.4, s*0.4, 0, 0, Math.PI*2); 
+        ctx.fill(); ctx.beginPath();
+        ctx.moveTo(-s*0.8, -s*0.8); ctx.lineTo(-s*0.4, -s*0.6); ctx.lineTo(-s*0.6, -s*0.2); 
+        break;
+      case 5: // Eye
+        ctx.arc(0, 0, s*0.9, 0, Math.PI*2);
+        break;
+      case 6: // Plant
+        ctx.moveTo(0, s); ctx.quadraticCurveTo(-s, 0, 0, -s); ctx.quadraticCurveTo(s, 0, 0, s);
+        ctx.fill(); ctx.beginPath();
+        ctx.moveTo(0, s); ctx.quadraticCurveTo(-s*1.5, s*0.5, -s*0.5, -s*0.5);
+        ctx.moveTo(0, s); ctx.quadraticCurveTo(s*1.5, s*0.5, s*0.5, -s*0.5);
+        break;
+      case 7: // Golem
+        ctx.rect(-s*0.8, -s*0.8, s*1.6, s*1.6);
+        ctx.fill(); ctx.beginPath();
+        ctx.rect(-s*1.2, -s*0.4, s*0.4, s*1.2); 
+        ctx.rect(s*0.8, -s*0.4, s*0.4, s*1.2); 
+        break;
+      case 8: // Spider
+        ctx.ellipse(0, s*0.2, s*0.6, s*0.8, 0, 0, Math.PI*2);
+        ctx.fill(); ctx.beginPath();
+        for(let i=0; i<4; i++) {
+            const legY = -s*0.2 + i*s*0.3;
+            ctx.moveTo(-s*0.4, legY); ctx.lineTo(-s*1.2, legY - s*0.4); ctx.lineTo(-s*1.5, legY + s*0.2);
+            ctx.moveTo(s*0.4, legY); ctx.lineTo(s*1.2, legY - s*0.4); ctx.lineTo(s*1.5, legY + s*0.2);
+        }
+        ctx.stroke(); ctx.beginPath();
+        break;
+      case 9: // Wisp
+        ctx.arc(0, 0, s*0.6, 0, Math.PI*2);
+        ctx.fill(); ctx.beginPath();
+        ctx.moveTo(0, -s*0.6); ctx.quadraticCurveTo(-s, -s*1.5, 0, -s*2); ctx.quadraticCurveTo(s, -s*1.5, 0, -s*0.6);
+        break;
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    // Eyes
+    ctx.fillStyle = isElite ? '#ef4444' : '#ffffff';
+    if (shapeIdx === 5) { // Eye
+        ctx.beginPath(); ctx.arc(0, 0, s*0.4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, s*0.2, 0, Math.PI*2); ctx.fill();
+    } else if (shapeIdx === 3) { // Skull
+        ctx.fillStyle = isElite ? '#ef4444' : '#000000';
+        ctx.beginPath(); ctx.arc(-s*0.3, -s*0.2, s*0.2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(s*0.3, -s*0.2, s*0.2, 0, Math.PI*2); ctx.fill();
+    } else if (shapeIdx !== 6 && shapeIdx !== 9) {
+        const eyeY = shapeIdx === 4 ? -s*0.4 : -s*0.1;
+        const eyeX = shapeIdx === 4 ? -s*0.6 : 0;
+        ctx.beginPath(); ctx.arc(eyeX - s*0.3, eyeY, s*0.15, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(eyeX + s*0.3, eyeY, s*0.15, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(eyeX - s*0.3, eyeY, s*0.05, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(eyeX + s*0.3, eyeY, s*0.05, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Elite decorations
+    if (isElite) {
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(x + 6, y + 7); ctx.lineTo(x + 1, y + 4); ctx.lineTo(x + 6, y + 10);
-        ctx.moveTo(x + 10, y + 7); ctx.lineTo(x + 15, y + 4); ctx.lineTo(x + 10, y + 10);
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-      }
-      else if (shape === 'GHOST') {
-        // Round top, jagged bottom
-        ctx.fillRect(x + 3, y + 2, 10, 10);
-        ctx.fillRect(x + 3, y + 12, 2, 3);
-        ctx.fillRect(x + 7, y + 12, 2, 3);
-        ctx.fillRect(x + 11, y + 12, 2, 3);
-      }
-      else if (shape === 'OGRE') {
-         // Big and bulky
-         ctx.fillRect(x + 2, y + 2, 12, 13);
-         ctx.fillRect(x + 1, y + 4, 14, 6); // Shoulders
-      }
-      else if (shape === 'BEAST') {
-         // Wide, quadraped
-         ctx.fillRect(x + 2, y + 6, 12, 8);
-         ctx.fillRect(x + 1, y + 5, 4, 4); // Head
-         ctx.fillRect(x + 2, y + 14, 2, 2); // Legs
-         ctx.fillRect(x + 12, y + 14, 2, 2);
-      }
-      else {
-        // BASIC box
-        ctx.fillRect(x + 2, y + 2, 12, 12);
-        // Detail/Shading
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.fillRect(x + 2, y + 10, 12, 4);
-      }
+        ctx.moveTo(-s*0.4, -s*1.2); ctx.lineTo(-s*0.2, -s*0.8); ctx.lineTo(0, -s*1.4); ctx.lineTo(s*0.2, -s*0.8); ctx.lineTo(s*0.4, -s*1.2);
+        ctx.stroke();
+    }
 
-      // Eyes
-      ctx.fillStyle = eyes;
-      if (shape === 'SLIME') {
-        ctx.fillRect(x + 5, y + 6, 2, 2);
-        ctx.fillRect(x + 9, y + 6, 2, 2);
-      } else if (shape === 'SKELETON') {
-        ctx.fillRect(x + 6, y + 3, 1, 1);
-        ctx.fillRect(x + 9, y + 3, 1, 1);
-      } else {
-        ctx.fillRect(x + 4, y + 5, 2, 2);
-        ctx.fillRect(x + 9, y + 5, 2, 2);
-        // Pupils
-        ctx.fillStyle = 'black';
-        ctx.fillRect(x + 5, y + 5, 1, 1);
-        ctx.fillRect(x + 10, y + 5, 1, 1);
-      }
+    ctx.restore();
   };
 
-  // 1. Goblins (Row 0) - Green - BASIC
-  [0,1,2,3].forEach(c => drawMob(0, c, '#4ade80', 'white', 'BASIC'));
+  const palettes = [
+      ['#a3e635', '#4d7c0f'], // Green (Row 0)
+      ['#38bdf8', '#0369a1'], // Blue (Row 1)
+      ['#f87171', '#b91c1c'], // Red (Row 2)
+      ['#c084fc', '#6b21a8'], // Purple (Elites, Row 3)
+  ];
 
-  // 2. Ogres (Row 1) - Red/Elite - OGRE
-  [0,1].forEach(c => drawMob(1, c, '#f87171', '#fecaca', 'OGRE'));
-
-  // 3. Slimes (Row 2) - Blue - SLIME
-  [0,1].forEach(c => drawMob(2, c, '#60a5fa', 'white', 'SLIME'));
-
-  // 4. Skeletons (Row 3) - Gray - SKELETON
-  [0,1,2].forEach(c => drawMob(3, c, '#cbd5e1', '#0f172a', 'SKELETON'));
-
-  // 5. Wraiths (Row 5) - Teal/Elite - GHOST
-  [0,1].forEach(c => drawMob(5, c, '#2dd4bf', '#ccfbf1', 'GHOST'));
-
-  // 6. Insects (Row 6) - Purple - BAT/WINGED
-  [0,1,2,3].forEach(c => drawMob(6, c, '#a78bfa', 'red', 'BAT'));
-  
-  // 7. Beasts (Row 7) - Orange/Brown - BEAST
-  [0,1,2].forEach(c => drawMob(7, c, '#fb923c', 'yellow', 'BEAST'));
-
-  // 8. BOSS (Row 9) - Big Green Slime (King Slime)
-  const drawBoss = () => {
-      const x = 0; 
-      const y = 9 * TILE_SIZE;
-      
-      // Slime Body (Green)
-      ctx.fillStyle = '#22c55e'; // Green 500
-      ctx.beginPath();
-      // Draw a blob shape
-      ctx.moveTo(x + 4, y + 28);
-      ctx.bezierCurveTo(x + 4, y + 4, x + 28, y + 4, x + 28, y + 28);
-      ctx.lineTo(x + 4, y + 28);
-      ctx.fill();
-
-      // Highlight
-      ctx.fillStyle = '#86efac';
-      ctx.beginPath();
-      ctx.ellipse(x + 10, y + 12, 3, 2, Math.PI / 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Eyes
-      ctx.fillStyle = 'white';
-      ctx.beginPath(); ctx.arc(x + 10, y + 18, 3, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(x + 22, y + 18, 3, 0, Math.PI*2); ctx.fill();
-      
-      ctx.fillStyle = 'black';
-      ctx.beginPath(); ctx.arc(x + 10, y + 18, 1, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(x + 22, y + 18, 1, 0, Math.PI*2); ctx.fill();
-
-      // Crown
-      ctx.fillStyle = '#facc15';
-      ctx.beginPath();
-      ctx.moveTo(x + 12, y + 6);
-      ctx.lineTo(x + 14, y + 9);
-      ctx.lineTo(x + 16, y + 5);
-      ctx.lineTo(x + 18, y + 9);
-      ctx.lineTo(x + 20, y + 6);
-      ctx.lineTo(x + 20, y + 10);
-      ctx.lineTo(x + 12, y + 10);
-      ctx.fill();
+  // Draw Mobs (30)
+  for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 10; col++) {
+          drawShape(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, col, palettes[row][0], palettes[row][1], false);
+      }
   }
-  drawBoss();
+
+  // Draw Elites (10)
+  for (let col = 0; col < 10; col++) {
+      drawShape(col * TILE_SIZE, 3 * TILE_SIZE, TILE_SIZE, col, palettes[3][0], palettes[3][1], true);
+  }
+
+  // Draw Bosses (3) - 256x256
+  const drawBoss = (x: number, y: number, type: number) => {
+      ctx.save();
+      ctx.translate(x + 128, y + 128);
+      ctx.scale(2, 2); // Scale up the drawing commands by 2x
+      
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(0, 50, 40, 15, 0, 0, Math.PI*2); ctx.fill();
+
+      if (type === 0) { // King Slime
+          const grad = ctx.createRadialGradient(0, -20, 0, 0, 0, 60);
+          grad.addColorStop(0, '#86efac'); grad.addColorStop(1, '#15803d');
+          ctx.fillStyle = grad; ctx.strokeStyle = '#14532d'; ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(0, -50);
+          ctx.bezierCurveTo(60, -50, 70, 30, 50, 50);
+          ctx.bezierCurveTo(20, 60, -20, 60, -50, 50);
+          ctx.bezierCurveTo(-70, 30, -60, -50, 0, -50);
+          ctx.fill(); ctx.stroke();
+          // Crown
+          ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#b45309';
+          ctx.beginPath(); ctx.moveTo(-20, -40); ctx.lineTo(-30, -70); ctx.lineTo(-10, -50); ctx.lineTo(0, -80); ctx.lineTo(10, -50); ctx.lineTo(30, -70); ctx.lineTo(20, -40); ctx.fill(); ctx.stroke();
+          // Eyes
+          ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(-20, 0, 8, 0, Math.PI*2); ctx.arc(20, 0, 8, 0, Math.PI*2); ctx.fill();
+      } else if (type === 1) { // Demon
+          const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 60);
+          grad.addColorStop(0, '#fca5a5'); grad.addColorStop(1, '#7f1d1d');
+          ctx.fillStyle = grad; ctx.strokeStyle = '#450a0a'; ctx.lineWidth = 4;
+          // Wings
+          ctx.beginPath(); ctx.moveTo(-20, -10); ctx.quadraticCurveTo(-80, -60, -100, -20); ctx.quadraticCurveTo(-60, 20, -20, 20); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(20, -10); ctx.quadraticCurveTo(80, -60, 100, -20); ctx.quadraticCurveTo(60, 20, 20, 20); ctx.fill(); ctx.stroke();
+          // Body
+          ctx.beginPath(); ctx.ellipse(0, 10, 30, 40, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+          // Head
+          ctx.beginPath(); ctx.arc(0, -30, 25, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+          // Horns
+          ctx.fillStyle = '#1c1917'; ctx.beginPath(); ctx.moveTo(-15, -50); ctx.quadraticCurveTo(-30, -80, -50, -70); ctx.quadraticCurveTo(-30, -50, -25, -40); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(15, -50); ctx.quadraticCurveTo(30, -80, 50, -70); ctx.quadraticCurveTo(30, -50, 25, -40); ctx.fill();
+          // Eyes
+          ctx.fillStyle = '#fef08a'; ctx.beginPath(); ctx.arc(-10, -35, 6, 0, Math.PI*2); ctx.arc(10, -35, 6, 0, Math.PI*2); ctx.fill();
+      } else if (type === 2) { // Beholder
+          const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 50);
+          grad.addColorStop(0, '#c4b5fd'); grad.addColorStop(1, '#4c1d95');
+          ctx.fillStyle = grad; ctx.strokeStyle = '#2e1065'; ctx.lineWidth = 4;
+          // Tentacles
+          for(let i=0; i<6; i++) {
+              const angle = (i/6) * Math.PI * 2;
+              const tx = Math.cos(angle) * 60; const ty = Math.sin(angle) * 60;
+              ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(tx*1.2, ty*0.5, tx, ty); ctx.stroke();
+              ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(tx, ty, 8, 0, Math.PI*2); ctx.fill();
+          }
+          // Body
+          ctx.fillStyle = grad;
+          ctx.beginPath(); ctx.arc(0, 0, 45, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+          // Big Eye
+          ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+  };
+
+  drawBoss(0, 256, 0);
+  drawBoss(256, 256, 1);
+  drawBoss(512, 256, 2);
 
   return canvas.toDataURL();
 };
@@ -476,7 +550,8 @@ const getRandomFromConfig = (config: { row: number, cols: number[] }[]): SpriteS
 
 export const getRandomSprite = (type: 'MOB' | 'ELITE' | 'BOSS'): SpriteSource => {
   if (type === 'BOSS') {
-    return { x: 0, y: 9 * TILE_SIZE, w: 32, h: 32 };
+    const col = Math.floor(Math.random() * 3);
+    return { x: col * 256, y: 256, w: 256, h: 256 };
   } else if (type === 'ELITE') {
     return getRandomFromConfig(ELITE_ROWS);
   } else {
